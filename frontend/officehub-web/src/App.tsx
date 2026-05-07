@@ -1,7 +1,7 @@
-import Home from "./pages/Home";
+import OfficeHubApp from "./OfficeHubApp";
 
 function App() {
-  return <Home />;
+  return <OfficeHubApp />;
 }
 
 export default App;
