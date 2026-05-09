@@ -6,6 +6,8 @@ export interface SessionUser {
   name: string;
   role: UserRole;
   avatar?: string;
+  /** JWT retornado por `POST /auth/login` (guardado em `sessionStorage` quando presente). */
+  token?: string;
 }
 
 export type RoomStatus = "available" | "occupied" | "reserved";

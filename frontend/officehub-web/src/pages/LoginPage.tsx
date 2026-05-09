@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SessionUser } from "../types/officehub";
+import type { SessionUser, UserRole } from "../types/officehub";
 
 const DEMO_ROWS: [string, string, string][] = [
   ["admin/admin", "Administrador", "role-admin"],
@@ -7,8 +7,29 @@ const DEMO_ROWS: [string, string, string][] = [
   ["func/func", "Funcionário", "role-employee"],
 ];
 
+/** Base da API; em dev o Vite faz proxy de `/auth` para `http://localhost:8080`. */
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 interface LoginPageProps {
   onLogin: (user: SessionUser) => void;
+}
+
+/** Converte logins curtos de demo para o e-mail seed no backend. */
+function resolveLoginEmail(login: string): string {
+  const t = login.trim();
+  if (t.includes("@")) {
+    return t;
+  }
+  const map: Record<string, string> = {
+    admin: "admin@officehub.local",
+    gestor: "gestor@officehub.local",
+    func: "func@officehub.local",
+  };
+  return map[t] ?? t;
+}
+
+function isUserRole(value: string): value is UserRole {
+  return value === "admin" || value === "manager" || value === "employee";
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -16,26 +37,74 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.login || !form.password) {
       setError("Preencha todos os campos.");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      if (form.login === "admin" && form.password === "admin") {
-        onLogin({ name: "Rafael Torres", role: "admin", avatar: "RT" });
-      } else if (form.login === "gestor" && form.password === "gestor") {
-        onLogin({ name: "Maria Souza", role: "manager", avatar: "MS" });
-      } else if (form.login === "func" && form.password === "func") {
-        onLogin({ name: "Carlos Lima", role: "employee", avatar: "CL" });
-      } else {
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          email: resolveLoginEmail(form.login),
+          password: form.password,
+        }),
+      });
+      if (!res.ok) {
         setError(
-          "Credenciais inválidas. Tente: admin/admin, gestor/gestor, func/func",
+          res.status === 401
+            ? "Credenciais inválidas. Verifique login e senha."
+            : `Erro ao entrar (${res.status}).`,
         );
         setLoading(false);
+        return;
       }
-    }, 900);
+      const data: unknown = await res.json();
+      if (
+        typeof data !== "object" ||
+        data === null ||
+        !("token" in data) ||
+        !("name" in data) ||
+        !("role" in data)
+      ) {
+        setError("Resposta inválida do servidor.");
+        setLoading(false);
+        return;
+      }
+      const token = (data as { token: unknown }).token;
+      const name = (data as { name: unknown }).name;
+      const roleRaw = (data as { role: unknown }).role;
+      const avatar = (data as { avatar?: unknown }).avatar;
+      if (
+        typeof token !== "string" ||
+        typeof name !== "string" ||
+        typeof roleRaw !== "string"
+      ) {
+        setError("Resposta inválida do servidor.");
+        setLoading(false);
+        return;
+      }
+      if (!isUserRole(roleRaw)) {
+        setError("Perfil de usuário não reconhecido.");
+        setLoading(false);
+        return;
+      }
+      onLogin({
+        name,
+        role: roleRaw,
+        avatar: typeof avatar === "string" ? avatar : undefined,
+        token,
+      });
+    } catch {
+      setError(
+        "Não foi possível conectar ao servidor. Inicie o backend (porta 8080) ou defina VITE_API_URL.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -67,13 +136,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <input
               id="login-user"
               className="form-input"
-              placeholder="seu.login"
+              placeholder="admin ou e-mail"
               value={form.login}
               onChange={(e) => {
                 setForm((f) => ({ ...f, login: e.target.value }));
                 setError("");
               }}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
             />
           </div>
           <div className="form-group">
@@ -90,7 +159,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 setForm((f) => ({ ...f, password: e.target.value }));
                 setError("");
               }}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              onKeyDown={(e) => e.key === "Enter" && void handleSubmit()}
             />
           </div>
           {error ? (
@@ -111,13 +180,13 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             type="button"
             className="btn btn-primary w-full"
             style={{ justifyContent: "center" }}
-            onClick={handleSubmit}
+            onClick={() => void handleSubmit()}
             disabled={loading}
           >
             {loading ? "Autenticando..." : "Entrar"}
           </button>
           <div className="login-divider">
-            <span>Credenciais de demonstração</span>
+            <span>Credenciais de demonstração (API)</span>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {DEMO_ROWS.map(([cred, label, cls]) => (
