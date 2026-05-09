@@ -8,6 +8,7 @@ import com.accenture.officehub.officehub_api.enums.ReservationStatus;
 import com.accenture.officehub.officehub_api.enums.RoomStatus;
 import com.accenture.officehub.officehub_api.exception.BadRequestException;
 import com.accenture.officehub.officehub_api.exception.ConflictException;
+import com.accenture.officehub.officehub_api.exception.ForbiddenException;
 import com.accenture.officehub.officehub_api.exception.ResourceNotFoundException;
 import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.model.Room;
@@ -139,9 +140,11 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
-    public void cancelReservation(Long reservationId) {
+    public void cancelReservation(Long reservationId, String cancellerName, String cancellerRole) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reserva com id " + reservationId + " nao encontrada."));
+
+        assertCanManageCancellation(reservation.getUser(), cancellerName, cancellerRole);
 
         if (reservation.getStatus() == ReservationStatus.cancelled) {
             // idempotente: nao quebra, apenas sincroniza e finaliza
@@ -156,7 +159,7 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
-    public void cancelReservationGroup(String groupId) {
+    public void cancelReservationGroup(String groupId, String cancellerName, String cancellerRole) {
         List<Reservation> all = reservationRepository.findAll();
         List<Reservation> targets = all.stream()
                 .filter(reservation ->
@@ -165,6 +168,15 @@ public class ReservationServiceImpl implements ReservationService {
                 .toList();
         if (targets.isEmpty()) {
             throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
+        }
+
+        if (!isAdminRole(cancellerRole)) {
+            boolean allOwnedByCanceller = targets.stream()
+                    .map(Reservation::getUser)
+                    .allMatch(user -> user.equalsIgnoreCase(cancellerName.trim()));
+            if (!allOwnedByCanceller) {
+                throw new ForbiddenException("Somente administrador pode cancelar reservas de outras pessoas.");
+            }
         }
 
         for (Reservation reservation : targets) {
@@ -298,6 +310,8 @@ public class ReservationServiceImpl implements ReservationService {
         LocalTime start = parseTime(request.start(), "start");
         LocalTime end = parseTime(request.end(), "end");
 
+        validateReservationDate(date);
+
         if (!start.isBefore(end)) {
             throw new BadRequestException("Horario invalido: start deve ser antes de end.");
         }
@@ -384,5 +398,36 @@ public class ReservationServiceImpl implements ReservationService {
 
     private boolean overlaps(LocalTime startA, LocalTime endA, LocalTime startB, LocalTime endB) {
         return startA.isBefore(endB) && endA.isAfter(startB);
+    }
+
+    private void validateReservationDate(LocalDate date) {
+        LocalDate today = LocalDate.now();
+        if (date.isBefore(today)) {
+            throw new BadRequestException("Nao e possivel reservar para datas que ja passaram.");
+        }
+        LocalDate earliestAllowed = today.plusDays(7);
+        if (date.isBefore(earliestAllowed)) {
+            throw new BadRequestException("Reservas exigem pelo menos 7 dias de antecedencia.");
+        }
+    }
+
+    private boolean isAdminRole(String role) {
+        return role != null && role.trim().equalsIgnoreCase("admin");
+    }
+
+    private void assertCanManageCancellation(String reservationUser, String cancellerName, String cancellerRole) {
+        if (cancellerName == null || cancellerName.isBlank()) {
+            throw new BadRequestException("requesterName e obrigatorio para cancelar.");
+        }
+        if (cancellerRole == null || cancellerRole.isBlank()) {
+            throw new BadRequestException("requesterRole e obrigatorio para cancelar.");
+        }
+        if (isAdminRole(cancellerRole)) {
+            return;
+        }
+        if (reservationUser.equalsIgnoreCase(cancellerName.trim())) {
+            return;
+        }
+        throw new ForbiddenException("Somente administrador pode cancelar reservas de outras pessoas.");
     }
 }

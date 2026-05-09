@@ -31,7 +31,14 @@ export async function fetchReservationGroup(groupId: string): Promise<Reservatio
   return apiRequest<ReservationGroup>(`/reservations/groups/${groupId}`);
 }
 
-export async function cancelReservationGroup(groupId: string): Promise<void> {
-  await apiRequest<void>(`/reservations/groups/${groupId}`, { method: "DELETE" });
+export async function cancelReservationGroup(
+  groupId: string,
+  requesterName: string,
+  requesterRole: string,
+): Promise<void> {
+  const q = new URLSearchParams({ requesterName, requesterRole });
+  await apiRequest<void>(`/reservations/groups/${groupId}?${q.toString()}`, {
+    method: "DELETE",
+  });
 }
 

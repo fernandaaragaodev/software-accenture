@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -57,14 +58,22 @@ public class ReservationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> cancelReservation(@PathVariable("id") Long id) {
-        reservationService.cancelReservation(id);
+    public ResponseEntity<Void> cancelReservation(
+            @PathVariable("id") Long id,
+            @RequestParam("requesterName") String requesterName,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        reservationService.cancelReservation(id, requesterName, requesterRole);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/groups/{groupId}")
-    public ResponseEntity<Void> cancelReservationGroup(@PathVariable("groupId") String groupId) {
-        reservationService.cancelReservationGroup(groupId);
+    public ResponseEntity<Void> cancelReservationGroup(
+            @PathVariable("groupId") String groupId,
+            @RequestParam("requesterName") String requesterName,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        reservationService.cancelReservationGroup(groupId, requesterName, requesterRole);
         return ResponseEntity.noContent().build();
     }
 }

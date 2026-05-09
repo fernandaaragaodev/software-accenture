@@ -18,6 +18,18 @@ interface ReservationsPageProps {
   user: SessionUser;
 }
 
+function canCancelEntireGroup(u: SessionUser, g: ReservationGroup): boolean {
+  if (u.role === "admin") return true;
+  return g.members.every(
+    (m) => m.user.toLowerCase() === u.name.toLowerCase(),
+  );
+}
+
+function canCancelMemberReservation(u: SessionUser, memberUser: string): boolean {
+  if (u.role === "admin") return true;
+  return memberUser.toLowerCase() === u.name.toLowerCase();
+}
+
 export function ReservationsPage({ user }: ReservationsPageProps) {
   const [groups, setGroups] = useState<ReservationGroup[]>([]);
   const [tab, setTab] = useState<ResTab>("all");
@@ -71,7 +83,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
   async function doCancelGroup(groupId: string) {
     setCancelLoading(true);
     try {
-      await cancelReservationGroup(groupId);
+      await cancelReservationGroup(groupId, user.name, user.role);
       await loadGroups();
       setCancelGroupTarget(null);
       setError(null);
@@ -89,7 +101,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
   async function doCancelMember(reservationId: number) {
     setCancelLoading(true);
     try {
-      await cancelReservation(reservationId);
+      await cancelReservation(reservationId, user.name, user.role);
       await loadGroups();
       setCancelMemberTarget(null);
       setError(null);
@@ -214,7 +226,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                       >
                         Detalhes
                       </button>
-                      {g.status !== "cancelled" ? (
+                      {g.status !== "cancelled" && canCancelEntireGroup(user, g) ? (
                         <button
                           type="button"
                           className="btn btn-danger btn-sm"
@@ -222,6 +234,10 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                         >
                           Cancelar {g.isBatch ? "lote" : "reserva"}
                         </button>
+                      ) : g.status !== "cancelled" ? (
+                        <span style={{ fontSize: 12, color: "var(--text3)" }} title="Apenas administrador pode cancelar reservas de terceiros">
+                          Sem permissão
+                        </span>
                       ) : (
                         <span style={{ fontSize: 12, color: "var(--text3)" }}>
                           —
@@ -289,7 +305,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <StatusBadge status={m.status} />
-                      {m.status !== "cancelled" ? (
+                      {m.status !== "cancelled" && canCancelMemberReservation(user, m.user) ? (
                         <button
                           type="button"
                           className="btn btn-danger btn-sm"

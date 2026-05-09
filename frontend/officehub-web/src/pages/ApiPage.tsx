@@ -5,7 +5,11 @@ const ENDPOINTS: [string, string, string][] = [
   ["GET", "/api/v1/rooms/:id/status", "Status em tempo real"],
   ["GET", "/api/v1/reservations", "Reservas ativas"],
   ["POST", "/api/v1/reservations", "Criar reserva"],
-  ["DELETE", "/api/v1/reservations/:id", "Cancelar reserva"],
+  [
+    "DELETE",
+    "/api/v1/reservations/:id?requesterName=&requesterRole=",
+    "Cancelar reserva (próprio usuário ou admin)",
+  ],
 ];
 
 export function ApiPage() {

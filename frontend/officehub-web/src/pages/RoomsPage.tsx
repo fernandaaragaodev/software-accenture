@@ -32,6 +32,17 @@ interface RoomsPageProps {
   user: SessionUser;
 }
 
+/** Primeiro dia permitido: hoje + 7 dias (alinhado ao backend). */
+function minReservationDateStr(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 7);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function RoomsPage({ user }: RoomsPageProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [filter, setFilter] = useState<"all" | RoomStatus>("all");
@@ -123,6 +134,13 @@ export function RoomsPage({ user }: RoomsPageProps) {
   async function handleReserve() {
     if (!reserveForm.date || !reserveForm.start || !reserveForm.end) return;
     if (!selectedRoom) return;
+    const minDate = minReservationDateStr();
+    if (reserveForm.date < minDate) {
+      setError(
+        "A data da reserva deve ser pelo menos 7 dias à frente e não pode estar no passado.",
+      );
+      return;
+    }
     setReserveLoading(true);
     try {
       const parsedBatchUsers = batchUsersInput
@@ -817,11 +835,15 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 id="res-date"
                 className="form-input"
                 type="date"
+                min={minReservationDateStr()}
                 value={reserveForm.date}
                 onChange={(e) =>
                   setReserveForm((f) => ({ ...f, date: e.target.value }))
                 }
               />
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
+                É necessário agendar com pelo menos 7 dias de antecedência; datas passadas não são permitidas.
+              </div>
             </div>
             <div className="form-row">
               <div className="form-group">

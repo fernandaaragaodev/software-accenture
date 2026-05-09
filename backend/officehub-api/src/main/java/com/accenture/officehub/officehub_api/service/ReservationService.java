@@ -12,7 +12,7 @@ public interface ReservationService {
     ReservationGroupResponseDto getReservationGroup(String groupId);
     ReservationResponseDto createReservation(ReservationRequestDto request);
     List<ReservationResponseDto> createReservationsBatch(List<ReservationRequestDto> requests);
-    void cancelReservation(Long reservationId);
-    void cancelReservationGroup(String groupId);
+    void cancelReservation(Long reservationId, String cancellerName, String cancellerRole);
+    void cancelReservationGroup(String groupId, String cancellerName, String cancellerRole);
     void synchronizeStatuses();
 }

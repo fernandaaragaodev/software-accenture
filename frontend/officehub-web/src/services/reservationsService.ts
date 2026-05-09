@@ -23,8 +23,13 @@ export async function createReservationsBatch(
   });
 }
 
-export async function cancelReservation(id: number): Promise<void> {
-  await apiRequest<void>(`/reservations/${id}`, {
+export async function cancelReservation(
+  id: number,
+  requesterName: string,
+  requesterRole: string,
+): Promise<void> {
+  const q = new URLSearchParams({ requesterName, requesterRole });
+  await apiRequest<void>(`/reservations/${id}?${q.toString()}`, {
     method: "DELETE",
   });
 }
