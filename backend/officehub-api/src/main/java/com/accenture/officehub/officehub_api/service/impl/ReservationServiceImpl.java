@@ -159,7 +159,9 @@ public class ReservationServiceImpl implements ReservationService {
     public void cancelReservationGroup(String groupId) {
         List<Reservation> all = reservationRepository.findAll();
         List<Reservation> targets = all.stream()
-                .filter(reservation -> groupId.equals(reservation.getReservationGroupId()))
+                .filter(reservation ->
+                        groupId.equals(reservation.getReservationGroupId())
+                                || ("SINGLE-" + reservation.getId()).equals(groupId))
                 .toList();
         if (targets.isEmpty()) {
             throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
