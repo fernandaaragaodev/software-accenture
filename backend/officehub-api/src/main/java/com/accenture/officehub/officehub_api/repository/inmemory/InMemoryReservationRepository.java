@@ -26,7 +26,10 @@ public class InMemoryReservationRepository implements ReservationRepository {
 
     @Override
     public Optional<Reservation> findById(Long id) {
-        return reservations.stream().filter(r -> r.getId().equals(id)).findFirst().map(this::copy);
+        return reservations.stream()
+                .filter(reservation -> reservation.getId().equals(id))
+                .findFirst()
+                .map(this::copy);
     }
 
     @Override
@@ -35,7 +38,7 @@ public class InMemoryReservationRepository implements ReservationRepository {
         if (mutable.getId() == null) {
             mutable.setId(sequence.getAndIncrement());
         }
-        reservations.removeIf(r -> r.getId().equals(mutable.getId()));
+        reservations.removeIf(current -> current.getId().equals(mutable.getId()));
         reservations.add(mutable);
         return copy(mutable);
     }
@@ -60,6 +63,11 @@ public class InMemoryReservationRepository implements ReservationRepository {
                 reservation.getRoomId(),
                 reservation.getRoom(),
                 reservation.getUser(),
+                reservation.getRequesterRole(),
+                reservation.getReservationGroupId(),
+                reservation.getSeatCode(),
+                reservation.getSeatType(),
+                reservation.getRequestedEquipment(),
                 reservation.getDate(),
                 reservation.getStart(),
                 reservation.getEnd(),

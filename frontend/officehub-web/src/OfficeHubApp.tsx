@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NAV, PAGE_TITLES, filterNavForRole } from "./constants/navigation";
 import { AppShell } from "./components/layout/AppShell";
 import type { PageId, SessionUser } from "./types/officehub";
@@ -10,16 +10,47 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { ApiPage } from "./pages/ApiPage";
-
-const UNREAD_NOTIFS = 2;
+import { fetchNotifications } from "./services/notificationsService";
 
 export default function OfficeHubApp() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [page, setPage] = useState<PageId>("dashboard");
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
-  const visibleNav = filterNavForRole(NAV, user?.role);
+  const visibleNav = useMemo(() => {
+    const roleNav = filterNavForRole(NAV, user?.role);
+    return roleNav.map((item) => {
+      if (item.id !== "notifications") return item;
+      return {
+        ...item,
+        badge: unreadNotifs > 0 ? String(unreadNotifs) : undefined,
+      };
+    });
+  }, [user?.role, unreadNotifs]);
   const mainNav = visibleNav.slice(0, 5);
   const adminNav = visibleNav.slice(5);
+
+  async function refreshUnreadNotifications() {
+    if (!user) {
+      setUnreadNotifs(0);
+      return;
+    }
+    try {
+      const notifications = await fetchNotifications();
+      setUnreadNotifs(notifications.filter((item) => !item.read).length);
+    } catch {
+      // Erro nao bloqueia navegação; mantem ultimo contador conhecido.
+    }
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    void refreshUnreadNotifications();
+    const polling = window.setInterval(() => {
+      void refreshUnreadNotifications();
+    }, 15000);
+    return () => window.clearInterval(polling);
+  }, [user]);
 
   function renderPage() {
     if (!user) return null;
@@ -33,7 +64,13 @@ export default function OfficeHubApp() {
       case "history":
         return <HistoryPage />;
       case "notifications":
-        return <NotificationsPage />;
+        return (
+          <NotificationsPage
+            onNotificationsChanged={(items) =>
+              setUnreadNotifs(items.filter((item) => !item.read).length)
+            }
+          />
+        );
       case "users":
         return <UsersPage />;
       case "api":
@@ -61,7 +98,7 @@ export default function OfficeHubApp() {
       pageTitle={PAGE_TITLES[page]}
       mainNav={mainNav}
       adminNav={adminNav}
-      unreadNotifs={UNREAD_NOTIFS}
+      unreadNotifs={unreadNotifs}
       onNavigate={setPage}
       onLogout={() => setUser(null)}
     >

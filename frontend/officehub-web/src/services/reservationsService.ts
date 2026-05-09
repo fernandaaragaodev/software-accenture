@@ -14,6 +14,15 @@ export async function createReservation(
   });
 }
 
+export async function createReservationsBatch(
+  payloads: CreateReservationPayload[],
+): Promise<Reservation[]> {
+  return apiRequest<Reservation[]>("/reservations/batch", {
+    method: "POST",
+    body: JSON.stringify({ reservations: payloads }),
+  });
+}
+
 export async function cancelReservation(id: number): Promise<void> {
   await apiRequest<void>(`/reservations/${id}`, {
     method: "DELETE",

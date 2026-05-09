@@ -1,7 +1,9 @@
 package com.accenture.officehub.officehub_api.controller;
 
+import com.accenture.officehub.officehub_api.dto.BatchReservationRequestDto;
 import com.accenture.officehub.officehub_api.dto.ReservationRequestDto;
 import com.accenture.officehub.officehub_api.dto.ReservationResponseDto;
+import com.accenture.officehub.officehub_api.dto.ReservationGroupResponseDto;
 import com.accenture.officehub.officehub_api.service.ReservationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -31,14 +33,38 @@ public class ReservationController {
         return ResponseEntity.ok(reservationService.listReservations());
     }
 
+    @GetMapping("/groups")
+    public ResponseEntity<List<ReservationGroupResponseDto>> listReservationGroups() {
+        return ResponseEntity.ok(reservationService.listReservationGroups());
+    }
+
+    @GetMapping("/groups/{groupId}")
+    public ResponseEntity<ReservationGroupResponseDto> getReservationGroup(@PathVariable("groupId") String groupId) {
+        return ResponseEntity.ok(reservationService.getReservationGroup(groupId));
+    }
+
     @PostMapping
     public ResponseEntity<ReservationResponseDto> createReservation(@Valid @RequestBody ReservationRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(reservationService.createReservation(request));
     }
 
+    @PostMapping("/batch")
+    public ResponseEntity<List<ReservationResponseDto>> createReservationsBatch(
+            @Valid @RequestBody BatchReservationRequestDto request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reservationService.createReservationsBatch(request.reservations()));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancelReservation(@PathVariable("id") Long id) {
         reservationService.cancelReservation(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/groups/{groupId}")
+    public ResponseEntity<Void> cancelReservationGroup(@PathVariable("groupId") String groupId) {
+        reservationService.cancelReservationGroup(groupId);
         return ResponseEntity.noContent().build();
     }
 }

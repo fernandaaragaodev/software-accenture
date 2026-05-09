@@ -6,6 +6,7 @@ import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.model.Room;
 import com.accenture.officehub.officehub_api.repository.ReservationRepository;
 import com.accenture.officehub.officehub_api.repository.RoomRepository;
+import com.accenture.officehub.officehub_api.service.NotificationService;
 import com.accenture.officehub.officehub_api.service.ReservationService;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Configuration;
@@ -20,11 +21,18 @@ public class SeedDataConfig {
     private final RoomRepository roomRepository;
     private final ReservationRepository reservationRepository;
     private final ReservationService reservationService;
+    private final NotificationService notificationService;
 
-    public SeedDataConfig(RoomRepository roomRepository, ReservationRepository reservationRepository, ReservationService reservationService) {
+    public SeedDataConfig(
+            RoomRepository roomRepository,
+            ReservationRepository reservationRepository,
+            ReservationService reservationService,
+            NotificationService notificationService
+    ) {
         this.roomRepository = roomRepository;
         this.reservationRepository = reservationRepository;
         this.reservationService = reservationService;
+        this.notificationService = notificationService;
     }
 
     @PostConstruct
@@ -39,13 +47,15 @@ public class SeedDataConfig {
         ));
 
         reservationRepository.saveAll(List.of(
-                new Reservation(1L, 1L, "Sala Apolo", "Maria Souza", LocalDate.parse("2025-06-10"), LocalTime.parse("09:00"), LocalTime.parse("11:00"), ReservationStatus.confirmed),
-                new Reservation(2L, 2L, "Sala Hermes", "Carlos Lima", LocalDate.parse("2025-06-10"), LocalTime.parse("14:00"), LocalTime.parse("16:00"), ReservationStatus.active),
-                new Reservation(3L, 3L, "Sala Athena", "Ana Pereira", LocalDate.parse("2025-06-11"), LocalTime.parse("10:00"), LocalTime.parse("12:00"), ReservationStatus.confirmed),
-                new Reservation(4L, 4L, "Sala Zeus", "Pedro Alves", LocalDate.parse("2025-06-09"), LocalTime.parse("08:00"), LocalTime.parse("09:30"), ReservationStatus.cancelled),
-                new Reservation(5L, 5L, "Sala Cronos", "Julia Costa", LocalDate.parse("2025-06-12"), LocalTime.parse("15:00"), LocalTime.parse("17:00"), ReservationStatus.confirmed)
+                new Reservation(1L, 1L, "Sala Apolo", "Maria Souza", "manager", null, "P1", "Mesa vazia", List.of("Mesa ergonômica"), LocalDate.parse("2025-06-10"), LocalTime.parse("09:00"), LocalTime.parse("11:00"), ReservationStatus.confirmed),
+                new Reservation(2L, 2L, "Sala Hermes", "Carlos Lima", "employee", null, "P2", "Mesa maior", List.of("Monitor 27"), LocalDate.parse("2025-06-10"), LocalTime.parse("14:00"), LocalTime.parse("16:00"), ReservationStatus.active),
+                new Reservation(3L, 3L, "Sala Athena", "Ana Pereira", "manager", null, "P3", "Mesa com PC maior", List.of("PC Workstation"), LocalDate.parse("2025-06-11"), LocalTime.parse("10:00"), LocalTime.parse("12:00"), ReservationStatus.confirmed),
+                new Reservation(4L, 4L, "Sala Zeus", "Pedro Alves", "manager", null, "P1", "Mesa vazia", List.of("Mesa ergonômica"), LocalDate.parse("2025-06-09"), LocalTime.parse("08:00"), LocalTime.parse("09:30"), ReservationStatus.cancelled),
+                new Reservation(5L, 5L, "Sala Cronos", "Julia Costa", "manager", null, "P2", "Mesa maior", List.of("Monitor 27"), LocalDate.parse("2025-06-12"), LocalTime.parse("15:00"), LocalTime.parse("17:00"), ReservationStatus.confirmed)
         ));
 
+        reservationRepository.findById(1L).ifPresent(notificationService::createReservationConfirmedNotification);
+        reservationRepository.findById(4L).ifPresent(notificationService::createReservationCancelledNotification);
         reservationService.synchronizeStatuses();
     }
 }

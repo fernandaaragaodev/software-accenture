@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/StatusBadge";
-import type { Room, RoomStatus, SessionUser } from "../types/officehub";
-import { createReservation } from "../services/reservationsService";
-import { fetchRooms } from "../services/roomsService";
+import type { Room, RoomPosition, RoomStatus, SessionUser } from "../types/officehub";
+import {
+  createReservation,
+  createReservationsBatch,
+} from "../services/reservationsService";
+import { fetchRoomPositions, fetchRooms } from "../services/roomsService";
 
 type RoomsModal = "add" | "view" | "reserve" | "upload" | null;
 
@@ -19,6 +22,10 @@ interface ReserveForm {
   date: string;
   start: string;
   end: string;
+  seatCode: string;
+  seatType: string;
+  requestedFor: string;
+  selectedEquipment: string[];
 }
 
 interface RoomsPageProps {
@@ -45,7 +52,15 @@ export function RoomsPage({ user }: RoomsPageProps) {
     date: "",
     start: "",
     end: "",
+    seatCode: "",
+    seatType: "",
+    requestedFor: user.name,
+    selectedEquipment: [],
   });
+  const [positions, setPositions] = useState<RoomPosition[]>([]);
+  const [selectedBatchSeats, setSelectedBatchSeats] = useState<string[]>([]);
+  const [batchUsersInput, setBatchUsersInput] = useState("");
+  const [loadingPositions, setLoadingPositions] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
   const canEdit = user.role === "admin" || user.role === "manager";
@@ -110,16 +125,76 @@ export function RoomsPage({ user }: RoomsPageProps) {
     if (!selectedRoom) return;
     setReserveLoading(true);
     try {
-      await createReservation({
-        roomId: selectedRoom.id,
-        user: user.name,
-        date: reserveForm.date,
-        start: reserveForm.start,
-        end: reserveForm.end,
-      });
+      const parsedBatchUsers = batchUsersInput
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const singleTargetUser =
+        parsedBatchUsers.length === 1 ? parsedBatchUsers[0] : reserveForm.requestedFor;
+      const selectedResource = reserveForm.selectedEquipment[0];
+
+      if (user.role !== "employee" && parsedBatchUsers.length > 1) {
+        if (!selectedResource) {
+          throw new Error("Escolha 1 recurso para as micro-reservas.");
+        }
+        if (selectedBatchSeats.length < parsedBatchUsers.length) {
+          throw new Error(
+            "Selecione pelo menos uma posição para cada colaborador informado.",
+          );
+        }
+
+        await createReservationsBatch(
+          parsedBatchUsers.map((targetUser, index) => {
+            const seatCode = selectedBatchSeats[index];
+            const selectedPosition = positions.find((item) => item.code === seatCode);
+            return {
+              roomId: selectedRoom.id,
+              requesterName: user.name,
+              requesterRole: user.role,
+              user: targetUser,
+              seatCode,
+              seatType: selectedPosition?.type ?? "Mesa",
+              requestedEquipment: [selectedResource],
+              date: reserveForm.date,
+              start: reserveForm.start,
+              end: reserveForm.end,
+            };
+          }),
+        );
+      } else {
+        if (!reserveForm.seatCode) {
+          throw new Error("Selecione uma posição.");
+        }
+        if (!selectedResource) {
+          throw new Error("Escolha 1 recurso para a mesa.");
+        }
+        await createReservation({
+          roomId: selectedRoom.id,
+          requesterName: user.name,
+          requesterRole: user.role,
+          user: singleTargetUser,
+          seatCode: reserveForm.seatCode,
+          seatType: reserveForm.seatType,
+          requestedEquipment: [selectedResource],
+          date: reserveForm.date,
+          start: reserveForm.start,
+          end: reserveForm.end,
+        });
+      }
       await loadRooms();
+      await loadPositions();
       setModal(null);
-      setReserveForm({ date: "", start: "", end: "" });
+      setReserveForm({
+        date: "",
+        start: "",
+        end: "",
+        seatCode: "",
+        seatType: "",
+        requestedFor: user.name,
+        selectedEquipment: [],
+      });
+      setSelectedBatchSeats([]);
+      setBatchUsersInput("");
       setError(null);
     } catch (err) {
       setError(
@@ -134,6 +209,52 @@ export function RoomsPage({ user }: RoomsPageProps) {
     setAiLoading(true);
     setTimeout(() => setAiLoading(false), 2200);
   }
+
+  async function loadPositions() {
+    if (
+      !selectedRoom ||
+      !reserveForm.date ||
+      !reserveForm.start ||
+      !reserveForm.end
+    ) {
+      setPositions([]);
+      return;
+    }
+    setLoadingPositions(true);
+    try {
+      const data = await fetchRoomPositions(
+        selectedRoom.id,
+        reserveForm.date,
+        reserveForm.start,
+        reserveForm.end,
+      );
+      setPositions(data);
+      const selectedStillAvailable = data.some(
+        (item) => item.code === reserveForm.seatCode && item.available,
+      );
+      if (!selectedStillAvailable) {
+        setReserveForm((prev) => ({
+          ...prev,
+          seatCode: "",
+          seatType: "",
+          selectedEquipment: [],
+        }));
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel carregar as posicoes da sala.",
+      );
+    } finally {
+      setLoadingPositions(false);
+    }
+  }
+
+  useEffect(() => {
+    if (modal !== "reserve") return;
+    void loadPositions();
+  }, [modal, selectedRoom?.id, reserveForm.date, reserveForm.start, reserveForm.end]);
 
   return (
     <div>
@@ -293,6 +414,15 @@ export function RoomsPage({ user }: RoomsPageProps) {
                     className="btn btn-primary btn-sm"
                     onClick={() => {
                       setSelectedRoom(room);
+                      setReserveForm((prev) => ({
+                        ...prev,
+                        requestedFor: user.name,
+                        seatCode: "",
+                        seatType: "",
+                        selectedEquipment: [],
+                      }));
+                      setSelectedBatchSeats([]);
+                      setBatchUsersInput("");
                       setModal("reserve");
                     }}
                   >
@@ -594,9 +724,20 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => setModal("reserve")}
+                  onClick={() => {
+                    setReserveForm((prev) => ({
+                      ...prev,
+                      requestedFor: user.name,
+                      seatCode: "",
+                      seatType: "",
+                      selectedEquipment: [],
+                    }));
+                    setSelectedBatchSeats([]);
+                    setBatchUsersInput("");
+                    setModal("reserve");
+                  }}
                 >
-                  Reservar esta sala
+                  Reservar posição
                 </button>
               ) : null}
               <button
@@ -614,11 +755,60 @@ export function RoomsPage({ user }: RoomsPageProps) {
       <Modal
         open={modal === "reserve" && !!selectedRoom}
         onClose={() => setModal(null)}
-        title={`Reservar — ${selectedRoom?.name ?? ""}`}
-        subtitle="RF06 — Agendamento de sala"
+        title={`Reservar posição — ${selectedRoom?.name ?? ""}`}
+        subtitle="RF06 — Agendamento de cadeira/recursos"
       >
         {selectedRoom ? (
           <>
+            {user.role !== "employee" ? (
+              <div
+                style={{
+                  border: "1px solid rgba(0,229,160,0.25)",
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12,
+                  background: "rgba(0,229,160,0.07)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "var(--green)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Interface Gestor/Admin - Reserva em lote
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" htmlFor="res-batch-users">
+                    Colaboradores (separados por vírgula)
+                  </label>
+                  <input
+                    id="res-batch-users"
+                    className="form-input"
+                    placeholder="Ex: Ana Pereira, Bruno Lima, Carla Souza"
+                    value={batchUsersInput}
+                    onChange={(e) => setBatchUsersInput(e.target.value)}
+                  />
+                  <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
+                    O sistema cria micro-reservas por colaborador e confirma tudo no final.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label" htmlFor="res-for">
+                  Reservar para
+                </label>
+                <input
+                  id="res-for"
+                  className="form-input"
+                  value={reserveForm.requestedFor}
+                  disabled
+                />
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label" htmlFor="res-date">
                 Data
@@ -663,6 +853,127 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 />
               </div>
             </div>
+            <div className="form-group">
+              <label className="form-label">Posições disponíveis</label>
+              {loadingPositions ? (
+                <div style={{ fontSize: 12, color: "var(--text3)" }}>
+                  Carregando posições...
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {positions.length === 0 ? (
+                    <span style={{ fontSize: 12, color: "var(--text3)" }}>
+                      Informe data e horário para listar posições.
+                    </span>
+                  ) : null}
+                  {positions.map((position) => (
+                    <button
+                      key={position.code}
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={!position.available}
+                      style={{
+                        borderColor:
+                          reserveForm.seatCode === position.code ||
+                          selectedBatchSeats.includes(position.code)
+                            ? "var(--accent)"
+                            : undefined,
+                        color:
+                          reserveForm.seatCode === position.code ||
+                          selectedBatchSeats.includes(position.code)
+                            ? "var(--accent)"
+                            : undefined,
+                        opacity: position.available ? 1 : 0.4,
+                      }}
+                      onClick={() => {
+                        if (user.role === "employee") {
+                          setReserveForm((prev) => ({
+                            ...prev,
+                            seatCode: position.code,
+                            seatType: position.type,
+                            selectedEquipment: [],
+                          }));
+                          return;
+                        }
+                        setSelectedBatchSeats((prev) =>
+                          prev.includes(position.code)
+                            ? prev.filter((seat) => seat !== position.code)
+                            : [...prev, position.code],
+                        );
+                      }}
+                    >
+                      {position.code} · {position.type}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {user.role !== "employee" && batchUsersInput.trim() ? (
+              <div className="form-group">
+                <label className="form-label">Micro-reservas do gestor</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {batchUsersInput
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .map((employee, index) => {
+                      const seatCode = selectedBatchSeats[index];
+                      const seatAvailable = seatCode
+                        ? positions.some(
+                            (position) => position.code === seatCode && position.available,
+                          )
+                        : false;
+                      return (
+                        <div
+                          key={`${employee}-${index}`}
+                          style={{
+                            fontSize: 12,
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: 8,
+                            padding: "8px 10px",
+                            color: "var(--text2)",
+                          }}
+                        >
+                          {employee} {"->"} {seatCode || "selecionar posição"}
+                          {seatCode ? (seatAvailable ? " · disponível" : " · indisponível") : ""}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            ) : null}
+            {reserveForm.seatCode || selectedBatchSeats.length > 0 ? (
+              <div className="form-group">
+                <label className="form-label">Recursos para a posição</label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(positions.find(
+                    (position) => position.code === reserveForm.seatCode,
+                  )?.availableEquipment ?? positions[0]?.availableEquipment ?? []
+                  ).map((equipment) => {
+                      const selected = reserveForm.selectedEquipment.includes(equipment);
+                      return (
+                        <button
+                          key={equipment}
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{
+                            borderColor: selected ? "var(--green)" : undefined,
+                            color: selected ? "var(--green)" : undefined,
+                          }}
+                          onClick={() =>
+                            setReserveForm((prev) => ({
+                              ...prev,
+                              selectedEquipment: selected ? [] : [equipment],
+                            }))
+                          }
+                        >
+                          {equipment}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            ) : null}
             <div
               style={{
                 fontSize: 13,
@@ -673,8 +984,8 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 marginBottom: 4,
               }}
             >
-              ℹ️ O status da sala será atualizado automaticamente (RF09) no
-              horário de início da reserva.
+              ℹ️ Funcionário reserva apenas para si. Gestor/Admin podem reservar
+              para terceiros e selecionar mais recursos.
             </div>
             <div className="modal-footer">
               <button
@@ -688,7 +999,13 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleReserve}
-                disabled={reserveLoading}
+                disabled={
+                  reserveLoading ||
+                  reserveForm.selectedEquipment.length !== 1 ||
+                  (user.role === "employee"
+                    ? !reserveForm.seatCode
+                    : !reserveForm.seatCode && selectedBatchSeats.length === 0)
+                }
               >
                 {reserveLoading ? "Confirmando..." : "Confirmar reserva"}
               </button>
