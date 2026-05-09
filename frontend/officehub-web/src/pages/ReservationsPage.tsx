@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/StatusBadge";
-import { MOCK_RESERVATIONS } from "../data/mock";
 import type { Reservation, SessionUser } from "../types/officehub";
+import {
+  cancelReservation,
+  fetchReservations,
+} from "../services/reservationsService";
 
 type ResTab = "all" | "mine" | "active" | "cancelled";
 
@@ -11,10 +14,36 @@ interface ReservationsPageProps {
 }
 
 export function ReservationsPage({ user }: ReservationsPageProps) {
-  const [reservations, setReservations] =
-    useState<Reservation[]>(MOCK_RESERVATIONS);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [tab, setTab] = useState<ResTab>("all");
   const [cancelTarget, setCancelTarget] = useState<Reservation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadReservations() {
+    setLoading(true);
+    try {
+      const data = await fetchReservations();
+      setReservations(data);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao carregar reservas do backend.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadReservations();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const filtered = reservations.filter((r) => {
     if (tab === "mine")
@@ -25,11 +54,22 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
     return true;
   });
 
-  function doCancel(id: number) {
-    setReservations((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: "cancelled" } : r)),
-    );
-    setCancelTarget(null);
+  async function doCancel(id: number) {
+    setCancelLoading(true);
+    try {
+      await cancelReservation(id);
+      await loadReservations();
+      setCancelTarget(null);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel cancelar a reserva.",
+      );
+    } finally {
+      setCancelLoading(false);
+    }
   }
 
   return (
@@ -66,6 +106,21 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
           </button>
         ))}
       </div>
+      {error ? (
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: 12,
+            color: "var(--red)",
+            background: "rgba(255,77,109,0.12)",
+            border: "1px solid rgba(255,77,109,0.25)",
+            borderRadius: 8,
+            padding: "8px 12px",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
       <div className="card">
         <div className="table-wrap">
@@ -81,6 +136,16 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
               </tr>
             </thead>
             <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6}>
+                    <div className="empty-state">
+                      <div className="empty-icon">⏳</div>
+                      <div className="empty-text">Carregando reservas...</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
               {filtered.map((r) => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 500, color: "var(--text1)" }}>
@@ -113,7 +178,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 ? (
+              {!loading && filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6}>
                     <div className="empty-state">
@@ -178,8 +243,9 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                 type="button"
                 className="btn btn-danger"
                 onClick={() => doCancel(cancelTarget.id)}
+                disabled={cancelLoading}
               >
-                Confirmar cancelamento
+                {cancelLoading ? "Cancelando..." : "Confirmar cancelamento"}
               </button>
             </div>
           </>

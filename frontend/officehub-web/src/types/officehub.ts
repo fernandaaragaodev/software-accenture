@@ -33,6 +33,14 @@ export interface Reservation {
   status: ReservationStatus;
 }
 
+export interface CreateReservationPayload {
+  roomId: number;
+  user: string;
+  date: string;
+  start: string;
+  end: string;
+}
+
 export type DirectoryUserStatus = "active" | "inactive";
 
 export interface DirectoryUser {

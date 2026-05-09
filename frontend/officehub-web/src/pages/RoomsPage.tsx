@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/StatusBadge";
-import { MOCK_ROOMS } from "../data/mock";
 import type { Room, RoomStatus, SessionUser } from "../types/officehub";
+import { createReservation } from "../services/reservationsService";
+import { fetchRooms } from "../services/roomsService";
 
 type RoomsModal = "add" | "view" | "reserve" | "upload" | null;
 
@@ -25,11 +26,14 @@ interface RoomsPageProps {
 }
 
 export function RoomsPage({ user }: RoomsPageProps) {
-  const [rooms, setRooms] = useState<Room[]>(MOCK_ROOMS);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [filter, setFilter] = useState<"all" | RoomStatus>("all");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<RoomsModal>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [reserveLoading, setReserveLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [newRoom, setNewRoom] = useState<NewRoomForm>({
     name: "",
     capacity: "",
@@ -45,6 +49,28 @@ export function RoomsPage({ user }: RoomsPageProps) {
   const [aiLoading, setAiLoading] = useState(false);
 
   const canEdit = user.role === "admin" || user.role === "manager";
+
+  async function loadRooms() {
+    setLoadingRooms(true);
+    try {
+      const data = await fetchRooms();
+      setRooms(data);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Falha ao carregar salas do backend.",
+      );
+    } finally {
+      setLoadingRooms(false);
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadRooms();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const filtered = rooms.filter((r) => {
     if (filter !== "all" && r.status !== filter) return false;
@@ -79,15 +105,29 @@ export function RoomsPage({ user }: RoomsPageProps) {
     });
   }
 
-  function handleReserve() {
+  async function handleReserve() {
     if (!reserveForm.date || !reserveForm.start || !reserveForm.end) return;
     if (!selectedRoom) return;
-    setRooms((prev) =>
-      prev.map((r) =>
-        r.id === selectedRoom.id ? { ...r, status: "reserved" as const } : r,
-      ),
-    );
-    setModal(null);
+    setReserveLoading(true);
+    try {
+      await createReservation({
+        roomId: selectedRoom.id,
+        user: user.name,
+        date: reserveForm.date,
+        start: reserveForm.start,
+        end: reserveForm.end,
+      });
+      await loadRooms();
+      setModal(null);
+      setReserveForm({ date: "", start: "", end: "" });
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Nao foi possivel criar a reserva.",
+      );
+    } finally {
+      setReserveLoading(false);
+    }
   }
 
   function simulateAI() {
@@ -135,6 +175,21 @@ export function RoomsPage({ user }: RoomsPageProps) {
           ) : null}
         </div>
       </div>
+      {error ? (
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: 12,
+            color: "var(--red)",
+            background: "rgba(255,77,109,0.12)",
+            border: "1px solid rgba(255,77,109,0.25)",
+            borderRadius: 8,
+            padding: "8px 12px",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
       <div className="flex gap-12 mb-16" style={{ flexWrap: "wrap" }}>
         <div className="topbar-search" style={{ flex: 1, minWidth: 200 }}>
@@ -168,6 +223,12 @@ export function RoomsPage({ user }: RoomsPageProps) {
       </div>
 
       <div className="rooms-grid">
+        {loadingRooms ? (
+          <div className="empty-state" style={{ gridColumn: "1/-1" }}>
+            <div className="empty-icon">⏳</div>
+            <div className="empty-text">Carregando salas...</div>
+          </div>
+        ) : null}
         {filtered.map((room) => (
           <div
             key={room.id}
@@ -260,7 +321,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
             </div>
           </div>
         ))}
-        {filtered.length === 0 ? (
+        {!loadingRooms && filtered.length === 0 ? (
           <div className="empty-state" style={{ gridColumn: "1/-1" }}>
             <div className="empty-icon">🏢</div>
             <div className="empty-text">Nenhuma sala encontrada</div>
@@ -627,8 +688,9 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 type="button"
                 className="btn btn-primary"
                 onClick={handleReserve}
+                disabled={reserveLoading}
               >
-                Confirmar reserva
+                {reserveLoading ? "Confirmando..." : "Confirmar reserva"}
               </button>
             </div>
           </>
