@@ -84,6 +84,9 @@ export default function OfficeHubApp() {
     return (
       <LoginPage
         onLogin={(u) => {
+          if (u.token) {
+            sessionStorage.setItem("officehub_token", u.token);
+          }
           setUser(u);
           setPage("dashboard");
         }}
@@ -100,7 +103,10 @@ export default function OfficeHubApp() {
       adminNav={adminNav}
       unreadNotifs={unreadNotifs}
       onNavigate={setPage}
-      onLogout={() => setUser(null)}
+      onLogout={() => {
+        sessionStorage.removeItem("officehub_token");
+        setUser(null);
+      }}
     >
       {renderPage()}
     </AppShell>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 const ENDPOINTS: [string, string, string][] = [
+  ["POST", "/auth/login", "Autenticação JWT (demo)"],
   ["GET", "/api/v1/rooms", "Lista todas as salas"],
   ["GET", "/api/v1/rooms/:id/status", "Status em tempo real"],
   ["GET", "/api/v1/reservations", "Reservas ativas"],
