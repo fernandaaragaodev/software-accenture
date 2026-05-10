@@ -5,9 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '127.0.0.1',
-    port: 3000
-  }
-})
+    port: 3000,
     proxy: {
       '/auth': {
         target: 'http://localhost:8080',
