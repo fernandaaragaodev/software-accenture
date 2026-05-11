@@ -8,6 +8,7 @@ public record ReservationGroupResponseDto(
         String groupId,
         boolean isBatch,
         String room,
+        String requesterName,
         String requesterRole,
         String date,
         String start,

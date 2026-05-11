@@ -12,6 +12,8 @@ public class Reservation {
     private Long roomId;
     private String room;
     private String user;
+    /** Quem criou a reserva (gestor/admin ou o proprio funcionario). */
+    private String requesterName;
     private String requesterRole;
     private String reservationGroupId;
     private String seatCode;
@@ -31,6 +33,7 @@ public class Reservation {
             Long roomId,
             String room,
             String user,
+            String requesterName,
             String requesterRole,
             String reservationGroupId,
             String seatCode,
@@ -45,6 +48,7 @@ public class Reservation {
         this.roomId = roomId;
         this.room = room;
         this.user = user;
+        this.requesterName = requesterName;
         this.requesterRole = requesterRole;
         this.reservationGroupId = reservationGroupId;
         this.seatCode = seatCode;
@@ -64,6 +68,8 @@ public class Reservation {
     public void setRoom(String room) { this.room = room; }
     public String getUser() { return user; }
     public void setUser(String user) { this.user = user; }
+    public String getRequesterName() { return requesterName; }
+    public void setRequesterName(String requesterName) { this.requesterName = requesterName; }
     public String getRequesterRole() { return requesterRole; }
     public void setRequesterRole(String requesterRole) { this.requesterRole = requesterRole; }
     public String getReservationGroupId() { return reservationGroupId; }

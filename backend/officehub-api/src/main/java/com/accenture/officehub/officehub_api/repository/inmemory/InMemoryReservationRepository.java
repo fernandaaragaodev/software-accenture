@@ -63,6 +63,7 @@ public class InMemoryReservationRepository implements ReservationRepository {
                 reservation.getRoomId(),
                 reservation.getRoom(),
                 reservation.getUser(),
+                reservation.getRequesterName(),
                 reservation.getRequesterRole(),
                 reservation.getReservationGroupId(),
                 reservation.getSeatCode(),

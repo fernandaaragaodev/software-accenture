@@ -20,14 +20,30 @@ interface ReservationsPageProps {
 
 function canCancelEntireGroup(u: SessionUser, g: ReservationGroup): boolean {
   if (u.role === "admin") return true;
+  if (u.role === "manager") {
+    const owner = (g.requesterName ?? "").trim().toLowerCase();
+    return owner === u.name.trim().toLowerCase();
+  }
   return g.members.every(
     (m) => m.user.toLowerCase() === u.name.toLowerCase(),
   );
 }
 
-function canCancelMemberReservation(u: SessionUser, memberUser: string): boolean {
+function canCancelMemberReservation(
+  u: SessionUser,
+  memberUser: string,
+  g: ReservationGroup,
+): boolean {
   if (u.role === "admin") return true;
-  return memberUser.toLowerCase() === u.name.toLowerCase();
+  if (u.role === "employee") {
+    return memberUser.toLowerCase() === u.name.toLowerCase();
+  }
+  if (u.role === "manager") {
+    const owner = (g.requesterName ?? "").trim().toLowerCase();
+    if (owner === u.name.trim().toLowerCase()) return true;
+    return memberUser.toLowerCase() === u.name.toLowerCase();
+  }
+  return false;
 }
 
 export function ReservationsPage({ user }: ReservationsPageProps) {
@@ -72,6 +88,15 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
     if (tab === "mine") {
       if (user.role === "employee") {
         return g.members.some((m) => m.user === user.name);
+      }
+      if (user.role === "manager") {
+        const createdByMe =
+          (g.requesterName ?? "").trim().toLowerCase() ===
+          user.name.trim().toLowerCase();
+        return (
+          createdByMe ||
+          g.members.some((m) => m.user === user.name)
+        );
       }
       return true;
     }
@@ -235,7 +260,10 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                           Cancelar {g.isBatch ? "lote" : "reserva"}
                         </button>
                       ) : g.status !== "cancelled" ? (
-                        <span style={{ fontSize: 12, color: "var(--text3)" }} title="Apenas administrador pode cancelar reservas de terceiros">
+                        <span
+                          style={{ fontSize: 12, color: "var(--text3)" }}
+                          title="Funcionário: só as próprias. Gestor: só lotes criados por ele. Admin: tudo."
+                        >
                           Sem permissão
                         </span>
                       ) : (
@@ -275,7 +303,9 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
               <span className="chip">
                 {detailsTarget.peopleCount} pessoa{detailsTarget.peopleCount !== 1 ? "s" : ""}
               </span>
-              <span className="chip">Criado por: {detailsTarget.requesterRole}</span>
+              <span className="chip">
+                Criado por: {detailsTarget.requesterName || "—"} ({detailsTarget.requesterRole})
+              </span>
             </div>
             <div className="card card-sm">
               <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 10 }}>
@@ -305,7 +335,8 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                       <StatusBadge status={m.status} />
-                      {m.status !== "cancelled" && canCancelMemberReservation(user, m.user) ? (
+                      {m.status !== "cancelled" &&
+                      canCancelMemberReservation(user, m.user, detailsTarget) ? (
                         <button
                           type="button"
                           className="btn btn-danger btn-sm"

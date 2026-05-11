@@ -12,5 +12,6 @@ public record RoomResponseDto(
         RoomStatus status,
         List<String> equipment,
         String floor,
-        Integer area
+        Integer area,
+        Integer occupiedDesks
 ) {}

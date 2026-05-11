@@ -8,7 +8,7 @@ export interface SessionUser {
   avatar?: string;
 }
 
-export type RoomStatus = "available" | "occupied" | "reserved";
+export type RoomStatus = "available" | "unavailable" | "occupied" | "reserved";
 
 export interface Room {
   id: number;
@@ -19,6 +19,7 @@ export interface Room {
   equipment: string[];
   floor: string;
   area: number;
+  occupiedDesks: number;
 }
 
 export type ReservationStatus = "confirmed" | "active" | "cancelled";
@@ -27,6 +28,7 @@ export interface Reservation {
   id: number;
   room: string;
   user: string;
+  requesterName?: string;
   requesterRole?: "admin" | "manager" | "employee";
   reservationGroupId?: string | null;
   seatCode?: string;

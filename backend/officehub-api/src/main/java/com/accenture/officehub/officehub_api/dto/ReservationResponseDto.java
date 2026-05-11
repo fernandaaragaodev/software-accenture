@@ -6,6 +6,7 @@ public record ReservationResponseDto(
         Long id,
         String room,
         String user,
+        String requesterName,
         String requesterRole,
         String reservationGroupId,
         String seatCode,

@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/StatusBadge";
-import type { Room, RoomPosition, RoomStatus, SessionUser } from "../types/officehub";
+import type { Room, RoomPosition, SessionUser } from "../types/officehub";
 import {
   createReservation,
   createReservationsBatch,
 } from "../services/reservationsService";
-import { fetchRoomPositions, fetchRooms } from "../services/roomsService";
+import {
+  fetchRoomPositions,
+  fetchRooms,
+  setRoomBlocked,
+} from "../services/roomsService";
 
-type RoomsModal = "add" | "view" | "reserve" | "upload" | null;
+type RoomsModal = "add" | "view" | "reserve" | "upload" | "confirmBlock" | null;
 
 interface NewRoomForm {
   name: string;
@@ -45,7 +49,9 @@ function minReservationDateStr(): string {
 
 export function RoomsPage({ user }: RoomsPageProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [filter, setFilter] = useState<"all" | RoomStatus>("all");
+  const [filter, setFilter] = useState<"all" | "available" | "unavailable">(
+    "all",
+  );
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<RoomsModal>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -73,8 +79,12 @@ export function RoomsPage({ user }: RoomsPageProps) {
   const [batchUsersInput, setBatchUsersInput] = useState("");
   const [loadingPositions, setLoadingPositions] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [blockingRoomId, setBlockingRoomId] = useState<number | null>(null);
+  const [blockAdminPassword, setBlockAdminPassword] = useState("");
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const canEdit = user.role === "admin" || user.role === "manager";
+  const isAdmin = user.role === "admin";
 
   async function loadRooms() {
     setLoadingRooms(true);
@@ -98,8 +108,15 @@ export function RoomsPage({ user }: RoomsPageProps) {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
+
   const filtered = rooms.filter((r) => {
-    if (filter !== "all" && r.status !== filter) return false;
+    if (filter === "available" && r.status !== "available") return false;
+    if (filter === "unavailable" && r.status !== "unavailable") return false;
     if (search && !r.name.toLowerCase().includes(search.toLowerCase()))
       return false;
     return true;
@@ -119,6 +136,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
         .filter(Boolean),
       floor: newRoom.floor || "1º andar",
       area: parseInt(newRoom.area, 10) || 30,
+      occupiedDesks: 0,
     };
     setRooms((prev) => [r, ...prev]);
     setModal(null);
@@ -131,9 +149,66 @@ export function RoomsPage({ user }: RoomsPageProps) {
     });
   }
 
+  function openDeactivateRoomConfirm(room: Room) {
+    setSelectedRoom(room);
+    setBlockAdminPassword("");
+    setError(null);
+    setModal("confirmBlock");
+  }
+
+  async function toggleRoomBlock(room: Room, blocked: boolean) {
+    setBlockingRoomId(room.id);
+    setError(null);
+    try {
+      await setRoomBlocked(room.id, blocked, user.role);
+      await loadRooms();
+      setSelectedRoom((prev) =>
+        prev?.id === room.id
+          ? { ...prev, status: blocked ? "unavailable" : "available" }
+          : prev,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Nao foi possivel atualizar o bloqueio da sala.",
+      );
+    } finally {
+      setBlockingRoomId(null);
+    }
+  }
+
+  async function confirmDeactivateRoom() {
+    if (!selectedRoom) return;
+    if (!blockAdminPassword.trim()) {
+      setError("Digite a senha de confirmacao.");
+      return;
+    }
+    setBlockingRoomId(selectedRoom.id);
+    setError(null);
+    try {
+      await setRoomBlocked(selectedRoom.id, true, user.role, blockAdminPassword);
+      await loadRooms();
+      setSelectedRoom((prev) =>
+        prev?.id === selectedRoom.id ? { ...prev, status: "unavailable" } : prev,
+      );
+      setModal(null);
+      setBlockAdminPassword("");
+      setSuccessMessage(`A sala "${selectedRoom.name}" foi desativada (bloqueada).`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Senha invalida ou falha ao desativar a sala.",
+      );
+    } finally {
+      setBlockingRoomId(null);
+    }
+  }
+
   async function handleReserve() {
     if (!reserveForm.date || !reserveForm.start || !reserveForm.end) return;
     if (!selectedRoom) return;
+    if (selectedRoom.status === "unavailable") {
+      setError("Esta sala esta indisponivel (bloqueada pelo administrador).");
+      return;
+    }
     const minDate = minReservationDateStr();
     if (reserveForm.date < minDate) {
       setError(
@@ -314,6 +389,21 @@ export function RoomsPage({ user }: RoomsPageProps) {
           ) : null}
         </div>
       </div>
+      {successMessage ? (
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: 12,
+            color: "var(--green)",
+            background: "rgba(0,229,160,0.1)",
+            border: "1px solid rgba(0,229,160,0.28)",
+            borderRadius: 8,
+            padding: "8px 12px",
+          }}
+        >
+          {successMessage}
+        </div>
+      ) : null}
       {error ? (
         <div
           style={{
@@ -339,7 +429,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        {(["all", "available", "occupied", "reserved"] as const).map((f) => (
+        {(["all", "available", "unavailable"] as const).map((f) => (
           <button
             key={f}
             type="button"
@@ -354,9 +444,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
               ? "Todas"
               : f === "available"
                 ? "Disponíveis"
-                : f === "occupied"
-                  ? "Ocupadas"
-                  : "Reservadas"}
+                : "Indisponíveis"}
           </button>
         ))}
       </div>
@@ -377,14 +465,10 @@ export function RoomsPage({ user }: RoomsPageProps) {
               setModal("view");
             }}
           >
-            <div className={`room-thumb ${room.status}`}>
-              <span>
-                {room.status === "available"
-                  ? "🏢"
-                  : room.status === "occupied"
-                    ? "👥"
-                    : "📅"}
-              </span>
+            <div
+              className={`room-thumb ${room.status === "unavailable" ? "unavailable" : "available"}`}
+            >
+              <span>{room.status === "unavailable" ? "🚫" : "🏢"}</span>
               <div className="room-status-overlay">
                 <StatusBadge status={room.status} />
               </div>
@@ -393,7 +477,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
               <div className="room-name">{room.name}</div>
               <div className="room-meta">
                 <span>👤 {room.capacity} pessoas</span>
-                <span>🪑 {room.desks} mesas</span>
+                <span>🪑 {room.desks - (room.occupiedDesks ?? 0)}/{room.desks} livres</span>
                 <span>📍 {room.floor}</span>
               </div>
               <div
@@ -426,35 +510,59 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 className="room-actions"
                 onClick={(e) => e.stopPropagation()}
               >
-                {room.status === "available" ? (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => {
-                      setSelectedRoom(room);
-                      setReserveForm((prev) => ({
-                        ...prev,
-                        requestedFor: user.name,
-                        seatCode: "",
-                        seatType: "",
-                        selectedEquipment: [],
-                      }));
-                      setSelectedBatchSeats([]);
-                      setBatchUsersInput("");
-                      setModal("reserve");
-                    }}
-                  >
-                    Reservar
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    disabled
-                  >
-                    Indisponível
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={room.status === "unavailable"}
+                  title={
+                    room.status === "unavailable"
+                      ? "Sala bloqueada pelo administrador."
+                      : undefined
+                  }
+                  onClick={() => {
+                    setSelectedRoom(room);
+                    setReserveForm((prev) => ({
+                      ...prev,
+                      requestedFor: user.name,
+                      seatCode: "",
+                      seatType: "",
+                      selectedEquipment: [],
+                    }));
+                    setSelectedBatchSeats([]);
+                    setBatchUsersInput("");
+                    setModal("reserve");
+                  }}
+                >
+                  Reservar
+                </button>
+                {isAdmin ? (
+                  room.status === "unavailable" ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={blockingRoomId === room.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggleRoomBlock(room, false);
+                      }}
+                    >
+                      {blockingRoomId === room.id ? "…" : "Desbloquear"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ color: "var(--red)" }}
+                      disabled={blockingRoomId === room.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeactivateRoomConfirm(room);
+                      }}
+                    >
+                      Desativar sala
+                    </button>
+                  )
+                ) : null}
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
@@ -710,54 +818,78 @@ export function RoomsPage({ user }: RoomsPageProps) {
                   >
                     Ocupação atual (RF08)
                   </div>
-                  <div className="progress-bar mb-8" style={{ height: 10 }}>
-                    <div
-                      className="progress-fill"
-                      style={{
-                        width:
-                          selectedRoom.status === "occupied"
-                            ? "100%"
-                            : selectedRoom.status === "reserved"
-                              ? "60%"
-                              : "0%",
-                        background:
-                          selectedRoom.status === "occupied"
-                            ? "var(--red)"
-                            : "var(--green)",
-                      }}
-                    />
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--text3)" }}>
-                    {selectedRoom.status === "occupied"
-                      ? `${selectedRoom.capacity}/${selectedRoom.capacity}`
-                      : selectedRoom.status === "reserved"
-                        ? `0/${selectedRoom.capacity} · Reservada`
-                        : `0/${selectedRoom.capacity} · Disponível`}
-                  </div>
+                  {(() => {
+                    const occupied = selectedRoom.occupiedDesks ?? 0;
+                    const total = selectedRoom.desks;
+                    const pct = total > 0 ? Math.round((occupied / total) * 100) : 0;
+                    const isFull = occupied >= total && total > 0;
+                    return (
+                      <>
+                        <div className="progress-bar mb-8" style={{ height: 10 }}>
+                          <div
+                            className="progress-fill"
+                            style={{
+                              width: `${pct}%`,
+                              background: isFull ? "var(--red)" : pct > 0 ? "var(--yellow, #f59e0b)" : "var(--green)",
+                            }}
+                          />
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--text3)" }}>
+                          {occupied}/{total} posições ocupadas agora
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              {selectedRoom.status === "available" ? (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setReserveForm((prev) => ({
-                      ...prev,
-                      requestedFor: user.name,
-                      seatCode: "",
-                      seatType: "",
-                      selectedEquipment: [],
-                    }));
-                    setSelectedBatchSeats([]);
-                    setBatchUsersInput("");
-                    setModal("reserve");
-                  }}
-                >
-                  Reservar posição
-                </button>
+              {isAdmin ? (
+                selectedRoom.status === "unavailable" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={blockingRoomId === selectedRoom.id}
+                    onClick={() => void toggleRoomBlock(selectedRoom, false)}
+                  >
+                    {blockingRoomId === selectedRoom.id ? "…" : "Desbloquear sala"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ color: "var(--red)" }}
+                    disabled={blockingRoomId === selectedRoom.id}
+                    onClick={() => openDeactivateRoomConfirm(selectedRoom)}
+                  >
+                    Desativar sala
+                  </button>
+                )
               ) : null}
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={selectedRoom.status === "unavailable"}
+                title={
+                  selectedRoom.status === "unavailable"
+                    ? "Sala bloqueada pelo administrador."
+                    : undefined
+                }
+                onClick={() => {
+                  setReserveForm((prev) => ({
+                    ...prev,
+                    requestedFor: user.name,
+                    seatCode: "",
+                    seatType: "",
+                    selectedEquipment: [],
+                  }));
+                  setSelectedBatchSeats([]);
+                  setBatchUsersInput("");
+                  setModal("reserve");
+                }}
+              >
+                Reservar posição
+              </button>
               <button
                 type="button"
                 className="btn btn-ghost"
@@ -1092,6 +1224,83 @@ export function RoomsPage({ user }: RoomsPageProps) {
             Processar com IA
           </button>
         </div>
+      </Modal>
+
+      <Modal
+        open={modal === "confirmBlock" && !!selectedRoom}
+        onClose={() => {
+          setModal(null);
+          setBlockAdminPassword("");
+          setError(null);
+        }}
+        title="Confirmar desativação"
+        subtitle={
+          selectedRoom
+            ? `${selectedRoom.name} — a sala ficará indisponível para reservas.`
+            : ""
+        }
+      >
+        {selectedRoom ? (
+          <>
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--text2)",
+                marginBottom: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              Digite a senha de confirmação definida no backend (
+              <code style={{ fontSize: 12 }}>officehub.admin.room-block-password</code>{" "}
+              em <code style={{ fontSize: 12 }}>application.properties</code>). Valor
+              padrão de demonstração: <strong>admin</strong>.
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-block-password">
+                Senha do administrador
+              </label>
+              <input
+                id="admin-block-password"
+                className="form-input"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Digite a senha"
+                value={blockAdminPassword}
+                onChange={(e) => setBlockAdminPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void confirmDeactivateRoom();
+                  }
+                }}
+              />
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setModal(null);
+                  setBlockAdminPassword("");
+                  setError(null);
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: "var(--red)", borderColor: "var(--red)" }}
+                disabled={blockingRoomId === selectedRoom.id}
+                onClick={() => void confirmDeactivateRoom()}
+              >
+                {blockingRoomId === selectedRoom.id
+                  ? "Confirmando…"
+                  : "Confirmar desativação"}
+              </button>
+            </div>
+          </>
+        ) : null}
       </Modal>
     </div>
   );

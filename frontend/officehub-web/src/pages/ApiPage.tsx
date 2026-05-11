@@ -3,6 +3,16 @@ import { useState } from "react";
 const ENDPOINTS: [string, string, string][] = [
   ["GET", "/api/v1/rooms", "Lista todas as salas"],
   ["GET", "/api/v1/rooms/:id/status", "Status em tempo real"],
+  [
+    "POST",
+    "/api/v1/rooms/:id/block?requesterRole=admin + JSON {\"adminPassword\":\"…\"}",
+    "Desativar/bloquear sala (somente admin; senha em application.properties)",
+  ],
+  [
+    "POST",
+    "/api/v1/rooms/:id/unblock?requesterRole=admin",
+    "Desbloquear sala (somente admin)",
+  ],
   ["GET", "/api/v1/reservations", "Reservas ativas"],
   ["POST", "/api/v1/reservations", "Criar reserva"],
   [

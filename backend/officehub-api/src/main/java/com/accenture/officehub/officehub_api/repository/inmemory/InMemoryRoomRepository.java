@@ -1,6 +1,7 @@
 package com.accenture.officehub.officehub_api.repository.inmemory;
 
 import com.accenture.officehub.officehub_api.model.Room;
+import com.accenture.officehub.officehub_api.model.RoomPosition;
 import com.accenture.officehub.officehub_api.repository.RoomRepository;
 import org.springframework.stereotype.Repository;
 
@@ -43,15 +44,19 @@ public class InMemoryRoomRepository implements RoomRepository {
     }
 
     private Room copy(Room room) {
+        List<RoomPosition> positions = room.getPositions() == null ? new ArrayList<>() : room.getPositions().stream()
+                .map(p -> new RoomPosition(p.getCode(), p.getType(), p.getEquipment()))
+                .toList();
         return new Room(
                 room.getId(),
                 room.getName(),
                 room.getCapacity(),
-                room.getDesks(),
                 room.getStatus(),
                 room.getEquipment() == null ? new ArrayList<>() : room.getEquipment(),
                 room.getFloor(),
-                room.getArea()
+                room.getArea(),
+                positions,
+                room.isBlocked()
         );
     }
 }

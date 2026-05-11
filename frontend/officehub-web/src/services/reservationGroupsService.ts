@@ -14,6 +14,7 @@ export interface ReservationGroup {
   groupId: string;
   isBatch: boolean;
   room: string;
+  requesterName: string;
   requesterRole: string;
   date: string;
   start: string;

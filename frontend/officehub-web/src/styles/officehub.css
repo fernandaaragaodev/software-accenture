@@ -589,6 +589,9 @@ tr:hover td {
 .room-thumb.reserved {
   background: rgba(255, 180, 68, 0.08);
 }
+.room-thumb.unavailable {
+  background: rgba(255, 77, 109, 0.1);
+}
 .room-status-overlay {
   position: absolute;
   top: 10px;

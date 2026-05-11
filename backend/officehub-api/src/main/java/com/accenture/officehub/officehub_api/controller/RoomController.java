@@ -1,12 +1,16 @@
 package com.accenture.officehub.officehub_api.controller;
 
+import com.accenture.officehub.officehub_api.dto.RoomBlockRequestDto;
 import com.accenture.officehub.officehub_api.dto.RoomResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomPositionResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomStatusResponseDto;
 import com.accenture.officehub.officehub_api.service.RoomService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,5 +45,24 @@ public class RoomController {
             @RequestParam("end") String end
     ) {
         return ResponseEntity.ok(roomService.listRoomPositions(id, date, start, end));
+    }
+
+    @PostMapping("/{id}/block")
+    public ResponseEntity<Void> blockRoom(
+            @PathVariable("id") Long id,
+            @RequestParam("requesterRole") String requesterRole,
+            @Valid @RequestBody RoomBlockRequestDto body
+    ) {
+        roomService.setRoomBlocked(id, true, requesterRole, body.adminPassword());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/unblock")
+    public ResponseEntity<Void> unblockRoom(
+            @PathVariable("id") Long id,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        roomService.setRoomBlocked(id, false, requesterRole, null);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -15,3 +15,22 @@ export async function fetchRoomPositions(
   return apiRequest<RoomPosition[]>(`/rooms/${roomId}/positions?${params.toString()}`);
 }
 
+export async function setRoomBlocked(
+  roomId: number,
+  blocked: boolean,
+  requesterRole: string,
+  adminPassword?: string,
+): Promise<void> {
+  const q = new URLSearchParams({ requesterRole });
+  if (blocked) {
+    await apiRequest<void>(`/rooms/${roomId}/block?${q.toString()}`, {
+      method: "POST",
+      body: JSON.stringify({ adminPassword: adminPassword ?? "" }),
+    });
+    return;
+  }
+  await apiRequest<void>(`/rooms/${roomId}/unblock?${q.toString()}`, {
+    method: "POST",
+  });
+}
+

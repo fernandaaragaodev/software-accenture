@@ -10,4 +10,6 @@ public interface RoomService {
     List<RoomResponseDto> listRooms();
     RoomStatusResponseDto getRoomStatus(Long roomId);
     List<RoomPositionResponseDto> listRoomPositions(Long roomId, String date, String start, String end);
+
+    void setRoomBlocked(Long roomId, boolean blocked, String requesterRole, String adminPassword);
 }
