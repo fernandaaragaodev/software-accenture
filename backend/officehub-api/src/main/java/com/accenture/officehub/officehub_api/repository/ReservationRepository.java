@@ -10,4 +10,10 @@ public interface ReservationRepository {
     Optional<Reservation> findById(Long id);
     Reservation save(Reservation reservation);
     void saveAll(List<Reservation> reservations);
+
+    /**
+     * Persiste varias reservas novas (sem id) num unico passo.
+     * Implementacoes em memoria devem ser atomicas (todas ou nenhuma).
+     */
+    List<Reservation> saveBatch(List<Reservation> reservations);
 }

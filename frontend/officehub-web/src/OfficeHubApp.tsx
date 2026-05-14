@@ -36,7 +36,7 @@ export default function OfficeHubApp() {
       return;
     }
     try {
-      const notifications = await fetchNotifications();
+      const notifications = await fetchNotifications(user);
       setUnreadNotifs(notifications.filter((item) => !item.read).length);
     } catch {
       // Erro nao bloqueia navegação; mantem ultimo contador conhecido.
@@ -66,6 +66,7 @@ export default function OfficeHubApp() {
       case "notifications":
         return (
           <NotificationsPage
+            user={user}
             onNotificationsChanged={(items) =>
               setUnreadNotifs(items.filter((item) => !item.read).length)
             }

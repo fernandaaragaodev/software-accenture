@@ -8,5 +8,6 @@ public record NotificationResponseDto(
         boolean read,
         String createdAt,
         Long reservationId,
-        String reservationGroupId
+        String reservationGroupId,
+        String actorUserName
 ) {}

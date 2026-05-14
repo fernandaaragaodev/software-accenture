@@ -53,7 +53,8 @@ public class InMemoryNotificationRepository implements NotificationRepository {
                 notification.isRead(),
                 notification.getCreatedAt(),
                 notification.getReservationId(),
-                notification.getReservationGroupId()
+                notification.getReservationGroupId(),
+                notification.getActorUserName()
         );
     }
 }

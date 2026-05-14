@@ -154,7 +154,8 @@ public class SeedDataConfig {
         ));
 
         reservationRepository.findById(1L).ifPresent(notificationService::createReservationConfirmedNotification);
-        reservationRepository.findById(4L).ifPresent(notificationService::createReservationCancelledNotification);
+        reservationRepository.findById(4L).ifPresent(r ->
+                notificationService.createReservationCancelledNotification(r, r.getRequesterName()));
         reservationService.synchronizeStatuses();
     }
 }

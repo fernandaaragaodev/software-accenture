@@ -11,6 +11,7 @@ import com.accenture.officehub.officehub_api.exception.ForbiddenException;
 import com.accenture.officehub.officehub_api.exception.ResourceNotFoundException;
 import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.model.Room;
+import com.accenture.officehub.officehub_api.model.RoomPosition;
 import com.accenture.officehub.officehub_api.repository.ReservationRepository;
 import com.accenture.officehub.officehub_api.repository.RoomRepository;
 import com.accenture.officehub.officehub_api.service.NotificationService;
@@ -25,9 +26,13 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 @Service
 public class ReservationServiceImpl implements ReservationService {
+
+    private final ReentrantLock reservationLock = new ReentrantLock();
 
     private final ReservationRepository reservationRepository;
     private final RoomRepository roomRepository;
@@ -43,6 +48,24 @@ public class ReservationServiceImpl implements ReservationService {
         this.notificationService = notificationService;
     }
 
+    private <T> T withLock(Supplier<T> supplier) {
+        reservationLock.lock();
+        try {
+            return supplier.get();
+        } finally {
+            reservationLock.unlock();
+        }
+    }
+
+    private void withLock(Runnable runnable) {
+        reservationLock.lock();
+        try {
+            runnable.run();
+        } finally {
+            reservationLock.unlock();
+        }
+    }
+
     private static String reservationGroupKey(Reservation reservation) {
         return reservation.getReservationGroupId() != null
                 ? reservation.getReservationGroupId()
@@ -56,188 +79,205 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     public List<ReservationResponseDto> listReservations() {
-        synchronizeStatuses();
-        return reservationRepository.findAll().stream()
-                .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
-                .map(this::toDto)
-                .toList();
+        return withLock(() -> {
+            doSynchronizeStatuses();
+            return reservationRepository.findAll().stream()
+                    .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
+                    .map(this::toDto)
+                    .toList();
+        });
     }
 
     @Override
     public List<ReservationGroupResponseDto> listReservationGroups() {
-        synchronizeStatuses();
-        List<Reservation> all = reservationRepository.findAll().stream()
-                .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
-                .toList();
+        return withLock(() -> {
+            doSynchronizeStatuses();
+            List<Reservation> all = reservationRepository.findAll().stream()
+                    .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
+                    .toList();
 
-        Map<String, List<Reservation>> groups = new LinkedHashMap<>();
-        for (Reservation res : all) {
-            String groupKey = reservationGroupKey(res);
-            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(res);
-        }
+            Map<String, List<Reservation>> groups = new LinkedHashMap<>();
+            for (Reservation res : all) {
+                String groupKey = reservationGroupKey(res);
+                groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(res);
+            }
 
-        return groups.entrySet().stream()
-                .map(entry -> toGroupDto(entry.getKey(), entry.getValue()))
-                .toList();
+            return groups.entrySet().stream()
+                    .map(entry -> toGroupDto(entry.getKey(), entry.getValue()))
+                    .toList();
+        });
     }
 
     @Override
     public ReservationGroupResponseDto getReservationGroup(String groupId) {
-        synchronizeStatuses();
-        List<Reservation> all = reservationRepository.findAll();
-        List<Reservation> group = all.stream()
-                .filter(r -> groupIdMatches(r, groupId))
-                .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
-                .toList();
-        if (group.isEmpty()) {
-            throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
-        }
-        return toGroupDto(groupId, group);
+        return withLock(() -> {
+            doSynchronizeStatuses();
+            List<Reservation> all = reservationRepository.findAll();
+            List<Reservation> group = all.stream()
+                    .filter(r -> groupIdMatches(r, groupId))
+                    .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
+                    .toList();
+            if (group.isEmpty()) {
+                throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
+            }
+            return toGroupDto(groupId, group);
+        });
     }
 
     @Override
     public ReservationResponseDto createReservation(ReservationRequestDto request) {
-        List<Reservation> currentReservations = reservationRepository.findAll();
-        Reservation prepared = prepareReservation(request, currentReservations);
-        Reservation created = reservationRepository.save(prepared);
+        return withLock(() -> {
+            List<Reservation> currentReservations = reservationRepository.findAll();
+            Reservation prepared = prepareReservation(request, currentReservations);
+            Reservation created = reservationRepository.save(prepared);
 
-        notificationService.createReservationConfirmedNotification(created);
-        synchronizeStatuses();
-        return toDto(created);
+            notificationService.createReservationConfirmedNotification(created);
+            doSynchronizeStatuses();
+            return toDto(created);
+        });
     }
 
     @Override
     public List<ReservationResponseDto> createReservationsBatch(List<ReservationRequestDto> requests) {
-        if (requests == null || requests.isEmpty()) {
-            throw new BadRequestException("Lista de reservas em lote nao pode ser vazia.");
-        }
-        String role = requests.getFirst().requesterRole().trim().toLowerCase();
-        if (role.equals("employee")) {
-            throw new BadRequestException("Reserva em lote permitida apenas para gestor ou admin.");
-        }
-        if (requests.size() < 2) {
-            throw new BadRequestException("Reserva em lote exige ao menos 2 reservas.");
-        }
-
-        for (ReservationRequestDto item : requests) {
-            String itemRole = item.requesterRole().trim().toLowerCase();
-            if (!itemRole.equals(role)) {
-                throw new BadRequestException("Todas as reservas em lote devem ter o mesmo requesterRole.");
+        return withLock(() -> {
+            if (requests == null || requests.isEmpty()) {
+                throw new BadRequestException("Lista de reservas em lote nao pode ser vazia.");
             }
-        }
-
-        ReservationRequestDto batchTemplate = requests.getFirst();
-        for (int i = 1; i < requests.size(); i++) {
-            ReservationRequestDto item = requests.get(i);
-            if (!batchTemplate.roomId().equals(item.roomId())) {
-                throw new BadRequestException("Reserva em lote deve ser na mesma sala (roomId).");
+            String role = requests.getFirst().requesterRole().trim().toLowerCase();
+            if (role.equals("employee")) {
+                throw new BadRequestException("Reserva em lote permitida apenas para gestor ou admin.");
             }
-            if (!batchTemplate.date().equals(item.date())
-                    || !batchTemplate.start().equals(item.start())
-                    || !batchTemplate.end().equals(item.end())) {
-                throw new BadRequestException("Reserva em lote deve usar a mesma data e horario para todas as posicoes.");
+            if (requests.size() < 2) {
+                throw new BadRequestException("Reserva em lote exige ao menos 2 reservas.");
             }
-        }
 
-        String batchRequesterName = batchTemplate.requesterName().trim();
-        for (ReservationRequestDto item : requests) {
-            if (!item.requesterName().trim().equalsIgnoreCase(batchRequesterName)) {
-                throw new BadRequestException("Todas as reservas em lote devem ter o mesmo requesterName.");
+            for (ReservationRequestDto item : requests) {
+                String itemRole = item.requesterRole().trim().toLowerCase();
+                if (!itemRole.equals(role)) {
+                    throw new BadRequestException("Todas as reservas em lote devem ter o mesmo requesterRole.");
+                }
             }
-        }
 
-        String reservationGroupId = "GRP-" + System.currentTimeMillis();
-        List<Reservation> currentReservations = new ArrayList<>(reservationRepository.findAll());
-        List<Reservation> preparedReservations = new ArrayList<>();
-        for (ReservationRequestDto request : requests) {
-            Reservation prepared = prepareReservation(request, currentReservations);
-            prepared.setReservationGroupId(reservationGroupId);
-            preparedReservations.add(prepared);
-            currentReservations.add(prepared);
-        }
+            ReservationRequestDto batchTemplate = requests.getFirst();
+            for (int i = 1; i < requests.size(); i++) {
+                ReservationRequestDto item = requests.get(i);
+                if (!batchTemplate.roomId().equals(item.roomId())) {
+                    throw new BadRequestException("Reserva em lote deve ser na mesma sala (roomId).");
+                }
+                if (!batchTemplate.date().equals(item.date())
+                        || !batchTemplate.start().equals(item.start())
+                        || !batchTemplate.end().equals(item.end())) {
+                    throw new BadRequestException("Reserva em lote deve usar a mesma data e horario para todas as posicoes.");
+                }
+            }
 
-        List<ReservationResponseDto> created = new ArrayList<>();
-        for (Reservation prepared : preparedReservations) {
-            Reservation persisted = reservationRepository.save(prepared);
-            created.add(toDto(persisted));
-        }
-        if (!preparedReservations.isEmpty()) {
-            Reservation first = preparedReservations.getFirst();
+            String batchRequesterName = batchTemplate.requesterName().trim();
+            for (ReservationRequestDto item : requests) {
+                if (!item.requesterName().trim().equalsIgnoreCase(batchRequesterName)) {
+                    throw new BadRequestException("Todas as reservas em lote devem ter o mesmo requesterName.");
+                }
+            }
+
+            String reservationGroupId = "GRP-" + System.currentTimeMillis();
+            List<Reservation> currentReservations = new ArrayList<>(reservationRepository.findAll());
+            List<Reservation> preparedReservations = new ArrayList<>();
+            for (ReservationRequestDto request : requests) {
+                Reservation prepared = prepareReservation(request, currentReservations);
+                prepared.setReservationGroupId(reservationGroupId);
+                preparedReservations.add(prepared);
+                currentReservations.add(prepared);
+            }
+
+            List<Reservation> persisted = reservationRepository.saveBatch(preparedReservations);
+            List<ReservationResponseDto> created = persisted.stream().map(this::toDto).toList();
+
+            if (!persisted.isEmpty()) {
+                Reservation first = persisted.getFirst();
             notificationService.createReservationGroupConfirmedNotification(
                     reservationGroupId,
                     first.getRoom(),
                     first.getDate().toString(),
                     first.getStart().toString(),
                     first.getEnd().toString(),
-                    preparedReservations.size()
+                    persisted.size(),
+                    first.getRequesterName() == null ? "" : first.getRequesterName().trim()
             );
-        }
-        synchronizeStatuses();
-        return created;
+            }
+            doSynchronizeStatuses();
+            return created;
+        });
     }
 
     @Override
     public void cancelReservation(Long reservationId, String cancellerName, String cancellerRole) {
-        Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Reserva com id " + reservationId + " nao encontrada."));
+        withLock(() -> {
+            Reservation reservation = reservationRepository.findById(reservationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Reserva com id " + reservationId + " nao encontrada."));
 
-        assertCanCancelReservation(reservation, cancellerName, cancellerRole);
+            assertCanCancelReservation(reservation, cancellerName, cancellerRole);
 
-        if (reservation.getStatus() == ReservationStatus.cancelled) {
-            // idempotente: nao quebra, apenas sincroniza e finaliza
-            synchronizeStatuses();
-            return;
-        }
+            if (reservation.getStatus() == ReservationStatus.cancelled) {
+                doSynchronizeStatuses();
+                return;
+            }
 
-        reservation.setStatus(ReservationStatus.cancelled);
-        reservationRepository.save(reservation);
-        notificationService.createReservationCancelledNotification(reservation);
-        synchronizeStatuses();
+            reservation.setStatus(ReservationStatus.cancelled);
+            reservationRepository.save(reservation);
+            notificationService.createReservationCancelledNotification(reservation, cancellerName);
+            doSynchronizeStatuses();
+        });
     }
 
     @Override
     public void cancelReservationGroup(String groupId, String cancellerName, String cancellerRole) {
-        List<Reservation> all = reservationRepository.findAll();
-        List<Reservation> targets = all.stream()
-                .filter(r -> groupIdMatches(r, groupId))
-                .toList();
-        if (targets.isEmpty()) {
-            throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
-        }
-
-        if (!isAdminRole(cancellerRole)) {
-            assertCanCancelReservationGroup(targets, cancellerName, cancellerRole);
-        }
-
-        boolean anyNonCancelled = targets.stream()
-                .anyMatch(r -> r.getStatus() != ReservationStatus.cancelled);
-        if (!anyNonCancelled) {
-            synchronizeStatuses();
-            return;
-        }
-
-        for (Reservation target : targets) {
-            if (target.getStatus() != ReservationStatus.cancelled) {
-                target.setStatus(ReservationStatus.cancelled);
-                reservationRepository.save(target);
+        withLock(() -> {
+            List<Reservation> all = reservationRepository.findAll();
+            List<Reservation> targets = all.stream()
+                    .filter(r -> groupIdMatches(r, groupId))
+                    .toList();
+            if (targets.isEmpty()) {
+                throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
             }
-        }
 
-        Reservation first = targets.getFirst();
+            if (!isAdminRole(cancellerRole)) {
+                assertCanCancelReservationGroup(targets, cancellerName, cancellerRole);
+            }
+
+            boolean anyNonCancelled = targets.stream()
+                    .anyMatch(r -> r.getStatus() != ReservationStatus.cancelled);
+            if (!anyNonCancelled) {
+                doSynchronizeStatuses();
+                return;
+            }
+
+            for (Reservation target : targets) {
+                if (target.getStatus() != ReservationStatus.cancelled) {
+                    target.setStatus(ReservationStatus.cancelled);
+                    reservationRepository.save(target);
+                }
+            }
+
+            Reservation first = targets.getFirst();
         notificationService.createReservationGroupCancelledNotification(
                 groupId,
                 first.getRoom(),
                 first.getDate().toString(),
                 first.getStart().toString(),
                 first.getEnd().toString(),
-                targets.size()
+                targets.size(),
+                cancellerName.trim()
         );
 
-        synchronizeStatuses();
+            doSynchronizeStatuses();
+        });
     }
 
     @Override
     public void synchronizeStatuses() {
+        withLock(this::doSynchronizeStatuses);
+    }
+
+    private void doSynchronizeStatuses() {
         LocalDate nowDate = LocalDate.now();
         LocalTime nowTime = LocalTime.now();
 
@@ -293,8 +333,11 @@ public class ReservationServiceImpl implements ReservationService {
         ReservationStatus status = ReservationStatus.confirmed;
         boolean anyActive = reservations.stream().anyMatch(r -> r.getStatus() == ReservationStatus.active);
         boolean allCancelled = reservations.stream().allMatch(r -> r.getStatus() == ReservationStatus.cancelled);
-        if (allCancelled) status = ReservationStatus.cancelled;
-        else if (anyActive) status = ReservationStatus.active;
+        if (allCancelled) {
+            status = ReservationStatus.cancelled;
+        } else if (anyActive) {
+            status = ReservationStatus.active;
+        }
 
         List<ReservationGroupMemberDto> members = reservations.stream()
                 .map(reservation -> new ReservationGroupMemberDto(
@@ -352,18 +395,20 @@ public class ReservationServiceImpl implements ReservationService {
         if (request.seatCode().isBlank()) {
             throw new BadRequestException("seatCode e obrigatorio.");
         }
-        if (request.requestedEquipment() == null || request.requestedEquipment().size() != 1) {
-            throw new BadRequestException("Cada reserva deve conter exatamente 1 recurso para a mesa.");
-        }
+
+        RoomPosition position = resolvePosition(room, request.seatCode());
+        assertSeatTypeMatches(position, request.seatType());
+        List<String> normalizedEquipment = normalizeEquipmentList(request.requestedEquipment());
+        validateRequestedEquipmentAgainstPosition(position, normalizedEquipment);
 
         boolean hasSeatConflict = existingReservations.stream()
                 .filter(reservation -> reservation.getStatus() != ReservationStatus.cancelled)
                 .filter(reservation -> reservation.getRoomId().equals(room.getId()))
                 .filter(reservation -> reservation.getDate().equals(date))
-                .filter(reservation -> reservation.getSeatCode().equalsIgnoreCase(request.seatCode()))
+                .filter(reservation -> reservation.getSeatCode().equalsIgnoreCase(position.getCode()))
                 .anyMatch(reservation -> overlaps(start, end, reservation.getStart(), reservation.getEnd()));
         if (hasSeatConflict) {
-            throw new ConflictException("Conflito de horario: posicao " + request.seatCode() + " indisponivel nesse intervalo.");
+            throw new ConflictException("Conflito de horario: posicao " + position.getCode() + " indisponivel nesse intervalo.");
         }
 
         if (role.equals("employee")) {
@@ -386,14 +431,63 @@ public class ReservationServiceImpl implements ReservationService {
                 request.requesterName().trim(),
                 role,
                 null,
-                request.seatCode(),
-                request.seatType(),
-                request.requestedEquipment(),
+                position.getCode(),
+                position.getType(),
+                normalizedEquipment,
                 date,
                 start,
                 end,
                 initialStatus
         );
+    }
+
+    private static RoomPosition resolvePosition(Room room, String seatCode) {
+        if (room.getPositions() == null || room.getPositions().isEmpty()) {
+            throw new BadRequestException("Sala sem posicoes cadastradas.");
+        }
+        String code = seatCode.trim();
+        return room.getPositions().stream()
+                .filter(p -> p.getCode() != null && p.getCode().equalsIgnoreCase(code))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Posicao " + seatCode + " nao existe nesta sala."));
+    }
+
+    private static void assertSeatTypeMatches(RoomPosition position, String requestedSeatType) {
+        if (requestedSeatType == null || requestedSeatType.isBlank()) {
+            throw new BadRequestException("seatType e obrigatorio.");
+        }
+        if (position.getType() == null || !position.getType().equalsIgnoreCase(requestedSeatType.trim())) {
+            throw new BadRequestException("seatType nao confere com a posicao cadastrada.");
+        }
+    }
+
+    private static List<String> normalizeEquipmentList(List<String> requested) {
+        if (requested == null || requested.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<String> out = new ArrayList<>();
+        for (String item : requested) {
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            out.add(item.trim());
+        }
+        return out;
+    }
+
+    private static void validateRequestedEquipmentAgainstPosition(RoomPosition position, List<String> normalizedRequested) {
+        if (normalizedRequested.isEmpty()) {
+            return;
+        }
+        List<String> available = position.getEquipment() == null ? List.of() : position.getEquipment();
+        for (String req : normalizedRequested) {
+            boolean match = available.stream()
+                    .filter(e -> e != null && !e.isBlank())
+                    .anyMatch(e -> e.trim().equalsIgnoreCase(req));
+            if (!match) {
+                throw new BadRequestException("Equipamento exigido indisponivel nesta posicao: " + req);
+            }
+        }
     }
 
     private LocalDate parseDate(String value) {

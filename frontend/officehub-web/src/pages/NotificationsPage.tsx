@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "../components/Modal";
-import type { NotificationItem } from "../types/officehub";
+import type { NotificationItem, SessionUser } from "../types/officehub";
 import {
   fetchNotifications,
   markAllNotificationsAsRead,
@@ -12,6 +12,7 @@ import {
 } from "../services/reservationGroupsService";
 
 interface NotificationsPageProps {
+  user: SessionUser;
   onNotificationsChanged?: (items: NotificationItem[]) => void;
 }
 
@@ -28,7 +29,7 @@ function formatRelativeTime(isoDate: string): string {
   return `${diffDays} dia${diffDays > 1 ? "s" : ""} atrás`;
 }
 
-export function NotificationsPage({ onNotificationsChanged }: NotificationsPageProps) {
+export function NotificationsPage({ user, onNotificationsChanged }: NotificationsPageProps) {
   const [notifs, setNotifs] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export function NotificationsPage({ onNotificationsChanged }: NotificationsPageP
   async function loadNotifications() {
     setLoading(true);
     try {
-      const data = await fetchNotifications();
+      const data = await fetchNotifications(user);
       setNotifs(data);
       onNotificationsChanged?.(data);
       setError(null);
@@ -66,7 +67,7 @@ export function NotificationsPage({ onNotificationsChanged }: NotificationsPageP
       window.clearTimeout(timer);
       window.clearInterval(polling);
     };
-  }, []);
+  }, [user]);
 
   const renderedNotifs = useMemo(
     () =>
@@ -78,13 +79,13 @@ export function NotificationsPage({ onNotificationsChanged }: NotificationsPageP
   );
 
   async function markAllRead() {
-    await markAllNotificationsAsRead();
+    await markAllNotificationsAsRead(user);
     await loadNotifications();
   }
 
   async function markOneRead(item: NotificationItem) {
     if (item.read) return;
-    await markNotificationAsRead(item.id);
+    await markNotificationAsRead(item.id, user);
     await loadNotifications();
   }
 
@@ -108,7 +109,9 @@ export function NotificationsPage({ onNotificationsChanged }: NotificationsPageP
             Notificações
           </div>
           <div style={{ fontSize: 13, color: "var(--text3)", marginTop: 3 }}>
-            RF15 — Alertas de reservas e mudanças
+            {user.role === "admin"
+              ? "RF15 — Todas as notificações do sistema"
+              : "RF15 — Apenas alertas das suas próprias ações"}
           </div>
         </div>
         <button

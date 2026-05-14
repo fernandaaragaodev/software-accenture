@@ -1,13 +1,13 @@
 package com.accenture.officehub.officehub_api.service.impl;
 
-import org.springframework.stereotype.Service;
-
 import com.accenture.officehub.officehub_api.dto.NotificationResponseDto;
+import com.accenture.officehub.officehub_api.exception.ForbiddenException;
 import com.accenture.officehub.officehub_api.exception.ResourceNotFoundException;
 import com.accenture.officehub.officehub_api.model.Notification;
 import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.repository.NotificationRepository;
 import com.accenture.officehub.officehub_api.service.NotificationService;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,33 +25,60 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public List<NotificationResponseDto> listNotifications() {
-        return notificationRepository.findAll()
-                .stream()
+    public List<NotificationResponseDto> listNotifications(String viewerName, String viewerRole) {
+        List<Notification> all = notificationRepository.findAll();
+        if (isAdminRole(viewerRole)) {
+            return all.stream().map(this::toDto).toList();
+        }
+        String viewer = normalizeName(viewerName);
+        if (viewer.isEmpty()) {
+            return List.of();
+        }
+        return all.stream()
+                .filter(n -> matchesViewer(n, viewer))
                 .map(this::toDto)
                 .toList();
     }
 
     @Override
-    public void markAsRead(Long notificationId) {
+    public void markAsRead(Long notificationId, String viewerName, String viewerRole) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notificacao com id " + notificationId + " nao encontrada."));
+        assertCanAccess(notification, viewerName, viewerRole);
         notification.setRead(true);
         notificationRepository.save(notification);
     }
 
     @Override
-    public void markAllAsRead() {
-        notificationRepository.findAll().forEach(notification -> {
-            if (!notification.isRead()) {
-                notification.setRead(true);
-                notificationRepository.save(notification);
-            }
-        });
+    public void markAllAsRead(String viewerName, String viewerRole) {
+        if (isAdminRole(viewerRole)) {
+            notificationRepository.findAll().forEach(notification -> {
+                if (!notification.isRead()) {
+                    notification.setRead(true);
+                    notificationRepository.save(notification);
+                }
+            });
+            return;
+        }
+        String viewer = normalizeName(viewerName);
+        if (viewer.isEmpty()) {
+            return;
+        }
+        notificationRepository.findAll().stream()
+                .filter(n -> matchesViewer(n, viewer))
+                .filter(n -> !n.isRead())
+                .forEach(notification -> {
+                    notification.setRead(true);
+                    notificationRepository.save(notification);
+                });
     }
 
     @Override
     public void createReservationConfirmedNotification(Reservation reservation) {
+        String actor = normalizeName(reservation.getRequesterName());
+        if (actor.isEmpty()) {
+            actor = normalizeName(reservation.getUser());
+        }
         String text = String.format(
                 "Reserva confirmada: %s para %s · %s (%s-%s) · %s",
                 reservation.getRoom(),
@@ -61,11 +88,12 @@ public class NotificationServiceImpl implements NotificationService {
                 reservation.getEnd(),
                 reservation.getSeatCode()
         );
-        createNotification("reservation_confirmed", text, "var(--green)", reservation.getId(), reservation.getReservationGroupId());
+        createNotification("reservation_confirmed", text, "var(--green)", reservation.getId(), reservation.getReservationGroupId(), actor);
     }
 
     @Override
-    public void createReservationCancelledNotification(Reservation reservation) {
+    public void createReservationCancelledNotification(Reservation reservation, String actorUserName) {
+        String actor = normalizeName(actorUserName);
         String text = String.format(
                 "Reserva cancelada: %s · %s (%s-%s) · %s",
                 reservation.getRoom(),
@@ -74,7 +102,7 @@ public class NotificationServiceImpl implements NotificationService {
                 reservation.getEnd(),
                 reservation.getSeatCode()
         );
-        createNotification("reservation_cancelled", text, "var(--red)", reservation.getId(), reservation.getReservationGroupId());
+        createNotification("reservation_cancelled", text, "var(--red)", reservation.getId(), reservation.getReservationGroupId(), actor);
     }
 
     @Override
@@ -84,8 +112,10 @@ public class NotificationServiceImpl implements NotificationService {
             String date,
             String start,
             String end,
-            int peopleCount
+            int peopleCount,
+            String actorUserName
     ) {
+        String actor = normalizeName(actorUserName);
         String text = String.format(
                 "Reserva em lote confirmada: %s · %s (%s-%s) · %d pessoa(s)",
                 room,
@@ -94,7 +124,7 @@ public class NotificationServiceImpl implements NotificationService {
                 end,
                 peopleCount
         );
-        createNotification("reservation_group_confirmed", text, "var(--green)", null, reservationGroupId);
+        createNotification("reservation_group_confirmed", text, "var(--green)", null, reservationGroupId, actor);
     }
 
     @Override
@@ -104,8 +134,10 @@ public class NotificationServiceImpl implements NotificationService {
             String date,
             String start,
             String end,
-            int peopleCount
+            int peopleCount,
+            String actorUserName
     ) {
+        String actor = normalizeName(actorUserName);
         String text = String.format(
                 "Reserva em lote cancelada: %s · %s (%s-%s) · %d pessoa(s)",
                 room,
@@ -114,10 +146,10 @@ public class NotificationServiceImpl implements NotificationService {
                 end,
                 peopleCount
         );
-        createNotification("reservation_group_cancelled", text, "var(--red)", null, reservationGroupId);
+        createNotification("reservation_group_cancelled", text, "var(--red)", null, reservationGroupId, actor);
     }
 
-    private void createNotification(String type, String text, String color, Long reservationId, String reservationGroupId) {
+    private void createNotification(String type, String text, String color, Long reservationId, String reservationGroupId, String actorUserName) {
         notificationRepository.save(new Notification(
                 null,
                 type,
@@ -126,7 +158,8 @@ public class NotificationServiceImpl implements NotificationService {
                 false,
                 LocalDateTime.now(),
                 reservationId,
-                reservationGroupId
+                reservationGroupId,
+                actorUserName.isEmpty() ? null : actorUserName
         ));
     }
 
@@ -139,7 +172,30 @@ public class NotificationServiceImpl implements NotificationService {
                 notification.isRead(),
                 notification.getCreatedAt().toString(),
                 notification.getReservationId(),
-                notification.getReservationGroupId()
+                notification.getReservationGroupId(),
+                notification.getActorUserName()
         );
+    }
+
+    private static boolean isAdminRole(String viewerRole) {
+        return viewerRole != null && viewerRole.trim().equalsIgnoreCase("admin");
+    }
+
+    private static String normalizeName(String name) {
+        return name == null ? "" : name.trim();
+    }
+
+    private static boolean matchesViewer(Notification n, String viewerNormalized) {
+        return n.getActorUserName() != null && n.getActorUserName().trim().equalsIgnoreCase(viewerNormalized);
+    }
+
+    private void assertCanAccess(Notification notification, String viewerName, String viewerRole) {
+        if (isAdminRole(viewerRole)) {
+            return;
+        }
+        String viewer = normalizeName(viewerName);
+        if (viewer.isEmpty() || !matchesViewer(notification, viewer)) {
+            throw new ForbiddenException("Sem permissao para esta notificacao.");
+        }
     }
 }

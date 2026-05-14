@@ -11,6 +11,8 @@ public class Notification {
     private LocalDateTime createdAt;
     private Long reservationId;
     private String reservationGroupId;
+    /** Usuario (nome) que originou o evento; usado para filtrar visibilidade de gestor/funcionario. */
+    private String actorUserName;
 
     public Notification() {}
 
@@ -22,7 +24,8 @@ public class Notification {
             boolean read,
             LocalDateTime createdAt,
             Long reservationId,
-            String reservationGroupId
+            String reservationGroupId,
+            String actorUserName
     ) {
         this.id = id;
         this.type = type;
@@ -32,6 +35,7 @@ public class Notification {
         this.createdAt = createdAt;
         this.reservationId = reservationId;
         this.reservationGroupId = reservationGroupId;
+        this.actorUserName = actorUserName;
     }
 
     public Long getId() { return id; }
@@ -50,4 +54,6 @@ public class Notification {
     public void setReservationId(Long reservationId) { this.reservationId = reservationId; }
     public String getReservationGroupId() { return reservationGroupId; }
     public void setReservationGroupId(String reservationGroupId) { this.reservationGroupId = reservationGroupId; }
+    public String getActorUserName() { return actorUserName; }
+    public void setActorUserName(String actorUserName) { this.actorUserName = actorUserName; }
 }

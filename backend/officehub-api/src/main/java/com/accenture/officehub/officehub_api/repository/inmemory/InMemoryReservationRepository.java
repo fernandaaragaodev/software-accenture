@@ -4,6 +4,7 @@ import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.repository.ReservationRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -55,6 +56,24 @@ public class InMemoryReservationRepository implements ReservationRepository {
             }
         }
         sequence.set(maxId + 1);
+    }
+
+    @Override
+    public List<Reservation> saveBatch(List<Reservation> batch) {
+        if (batch == null || batch.isEmpty()) {
+            throw new IllegalArgumentException("saveBatch requer lista nao vazia.");
+        }
+        List<Reservation> staged = new ArrayList<>(batch.size());
+        for (Reservation reservation : batch) {
+            if (reservation.getId() != null) {
+                throw new IllegalArgumentException("saveBatch aceita apenas reservas novas (id nulo).");
+            }
+            Reservation mutable = copy(reservation);
+            mutable.setId(sequence.getAndIncrement());
+            staged.add(mutable);
+        }
+        reservations.addAll(staged);
+        return staged.stream().map(this::copy).toList();
     }
 
     private Reservation copy(Reservation reservation) {

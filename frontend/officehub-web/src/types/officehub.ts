@@ -80,6 +80,8 @@ export interface NotificationItem {
   createdAt: string;
   reservationId: number | null;
   reservationGroupId: string | null;
+  /** Nome do usuario que originou o evento (visibilidade no backend). */
+  actorUserName?: string | null;
 }
 
 export type PageId =
