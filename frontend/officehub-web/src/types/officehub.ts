@@ -58,6 +58,7 @@ export interface RoomPosition {
   type: string;
   availableEquipment: string[];
   available: boolean;
+  blocked: boolean;
 }
 
 export type DirectoryUserStatus = "active" | "inactive";

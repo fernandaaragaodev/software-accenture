@@ -1,5 +1,5 @@
 import { apiRequest } from "./api";
-import type { ReservationStatus } from "../types/officehub";
+import type { ReservationStatus, SessionUser } from "../types/officehub";
 
 export interface ReservationGroupMember {
   reservationId: number;
@@ -24,12 +24,30 @@ export interface ReservationGroup {
   members: ReservationGroupMember[];
 }
 
-export async function fetchReservationGroups(): Promise<ReservationGroup[]> {
-  return apiRequest<ReservationGroup[]>("/reservations/groups");
+function reservationScopeQuery(user?: Pick<SessionUser, "name" | "role">): string {
+  if (!user) return "";
+  const params = new URLSearchParams({
+    requesterName: user.name,
+    requesterRole: user.role,
+  });
+  return `?${params.toString()}`;
 }
 
-export async function fetchReservationGroup(groupId: string): Promise<ReservationGroup> {
-  return apiRequest<ReservationGroup>(`/reservations/groups/${groupId}`);
+export async function fetchReservationGroups(
+  user?: Pick<SessionUser, "name" | "role">,
+): Promise<ReservationGroup[]> {
+  return apiRequest<ReservationGroup[]>(
+    `/reservations/groups${reservationScopeQuery(user)}`,
+  );
+}
+
+export async function fetchReservationGroup(
+  groupId: string,
+  user?: Pick<SessionUser, "name" | "role">,
+): Promise<ReservationGroup> {
+  return apiRequest<ReservationGroup>(
+    `/reservations/groups/${groupId}${reservationScopeQuery(user)}`,
+  );
 }
 
 export async function cancelReservationGroup(

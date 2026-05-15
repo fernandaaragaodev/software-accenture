@@ -92,7 +92,7 @@ export function NotificationsPage({ user, onNotificationsChanged }: Notification
   async function openGroupDetails(groupId: string) {
     setGroupLoading(true);
     try {
-      const data = await fetchReservationGroup(groupId);
+      const data = await fetchReservationGroup(groupId, user);
       setGroupDetails(data);
     } finally {
       setGroupLoading(false);

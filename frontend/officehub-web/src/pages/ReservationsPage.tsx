@@ -48,7 +48,9 @@ function canCancelMemberReservation(
 
 export function ReservationsPage({ user }: ReservationsPageProps) {
   const [groups, setGroups] = useState<ReservationGroup[]>([]);
-  const [tab, setTab] = useState<ResTab>("all");
+  const [tab, setTab] = useState<ResTab>(
+    user.role === "employee" ? "mine" : "all",
+  );
   const [detailsTarget, setDetailsTarget] = useState<ReservationGroup | null>(null);
   const [cancelGroupTarget, setCancelGroupTarget] = useState<ReservationGroup | null>(null);
   const [cancelMemberTarget, setCancelMemberTarget] = useState<{
@@ -63,7 +65,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
   async function loadGroups() {
     setLoading(true);
     try {
-      const data = await fetchReservationGroups();
+      const data = await fetchReservationGroups(user);
       setGroups(data);
       setError(null);
     } catch (err) {
@@ -245,7 +247,7 @@ export function ReservationsPage({ user }: ReservationsPageProps) {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         onClick={async () => {
-                          const full = await fetchReservationGroup(g.groupId);
+                          const full = await fetchReservationGroup(g.groupId, user);
                           setDetailsTarget(full);
                         }}
                       >

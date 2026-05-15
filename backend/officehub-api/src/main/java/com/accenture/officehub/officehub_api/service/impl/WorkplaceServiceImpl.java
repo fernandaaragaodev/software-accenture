@@ -219,6 +219,9 @@ public class WorkplaceServiceImpl implements WorkplaceService {
         }
         int free = 0;
         for (var position : room.getPositions()) {
+            if (position.isBlocked()) {
+                continue;
+            }
             boolean occupied = reservationRepository.findAll().stream()
                     .filter(r -> r.getRoomId().equals(room.getId()))
                     .filter(r -> r.getStatus() != ReservationStatus.cancelled)
@@ -226,7 +229,8 @@ public class WorkplaceServiceImpl implements WorkplaceService {
                     .anyMatch(r ->
                             r.getSeatCode() != null
                                     && position.getCode() != null
-                                    && r.getSeatCode().equalsIgnoreCase(position.getCode()));
+                                    && r.getSeatCode().equalsIgnoreCase(position.getCode())
+                                    && overlaps(start, end, r.getStart(), r.getEnd()));
             if (!occupied) {
                 free++;
             }

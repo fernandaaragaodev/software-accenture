@@ -16,6 +16,17 @@ const ENDPOINTS: [HttpMethod, string, string][] = [
   ["GET", "/api/v1/rooms", "Listar salas"],
   ["GET", "/api/v1/rooms/:id/status", "Status da sala"],
   ["GET", "/api/v1/rooms/:id/positions?date=YYYY-MM-DD&start=HH:mm&end=HH:mm", "Posições e disponibilidade no intervalo"],
+  ["GET", "/api/v1/rooms/:id/positions/overview", "Visão geral das posições (bloqueio admin)"],
+  [
+    "POST",
+    "/api/v1/rooms/:id/positions/:code/block?requesterRole=admin",
+    "Bloquear posição específica (ex.: P1)",
+  ],
+  [
+    "POST",
+    "/api/v1/rooms/:id/positions/:code/unblock?requesterRole=admin",
+    "Desbloquear posição específica",
+  ],
   [
     "POST",
     "/api/v1/rooms/:id/block?requesterRole=admin",

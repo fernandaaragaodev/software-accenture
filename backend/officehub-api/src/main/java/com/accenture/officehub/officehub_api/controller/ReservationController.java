@@ -30,18 +30,28 @@ public class ReservationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ReservationResponseDto>> listReservations() {
-        return ResponseEntity.ok(reservationService.listReservations());
+    public ResponseEntity<List<ReservationResponseDto>> listReservations(
+            @RequestParam(value = "requesterName", required = false) String requesterName,
+            @RequestParam(value = "requesterRole", required = false) String requesterRole
+    ) {
+        return ResponseEntity.ok(reservationService.listReservations(requesterName, requesterRole));
     }
 
     @GetMapping("/groups")
-    public ResponseEntity<List<ReservationGroupResponseDto>> listReservationGroups() {
-        return ResponseEntity.ok(reservationService.listReservationGroups());
+    public ResponseEntity<List<ReservationGroupResponseDto>> listReservationGroups(
+            @RequestParam(value = "requesterName", required = false) String requesterName,
+            @RequestParam(value = "requesterRole", required = false) String requesterRole
+    ) {
+        return ResponseEntity.ok(reservationService.listReservationGroups(requesterName, requesterRole));
     }
 
     @GetMapping("/groups/{groupId}")
-    public ResponseEntity<ReservationGroupResponseDto> getReservationGroup(@PathVariable("groupId") String groupId) {
-        return ResponseEntity.ok(reservationService.getReservationGroup(groupId));
+    public ResponseEntity<ReservationGroupResponseDto> getReservationGroup(
+            @PathVariable("groupId") String groupId,
+            @RequestParam(value = "requesterName", required = false) String requesterName,
+            @RequestParam(value = "requesterRole", required = false) String requesterRole
+    ) {
+        return ResponseEntity.ok(reservationService.getReservationGroup(groupId, requesterName, requesterRole));
     }
 
     @PostMapping

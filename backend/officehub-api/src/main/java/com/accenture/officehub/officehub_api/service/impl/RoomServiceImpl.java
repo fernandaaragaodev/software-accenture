@@ -9,6 +9,7 @@ import com.accenture.officehub.officehub_api.exception.BadRequestException;
 import com.accenture.officehub.officehub_api.exception.ForbiddenException;
 import com.accenture.officehub.officehub_api.exception.ResourceNotFoundException;
 import com.accenture.officehub.officehub_api.model.Room;
+import com.accenture.officehub.officehub_api.model.RoomPosition;
 import com.accenture.officehub.officehub_api.repository.ReservationRepository;
 import com.accenture.officehub.officehub_api.repository.RoomRepository;
 import com.accenture.officehub.officehub_api.service.ReservationService;
@@ -73,27 +74,69 @@ public class RoomServiceImpl implements RoomService {
                             position.getCode(),
                             position.getType(),
                             position.getEquipment(),
-                            false
+                            false,
+                            position.isBlocked()
                     ))
                     .toList();
         }
 
         return room.getPositions().stream().map(position -> {
-            boolean occupied = reservationRepository.findAll().stream()
+            boolean positionBlocked = position.isBlocked();
+            boolean occupied = !positionBlocked && reservationRepository.findAll().stream()
                     .filter(current -> current.getRoomId().equals(roomId))
                     .filter(current -> current.getStatus() != ReservationStatus.cancelled)
                     .filter(current -> current.getDate().equals(reservationDate))
                     .anyMatch(current ->
                             current.getSeatCode() != null
                                     && position.getCode() != null
-                                    && current.getSeatCode().equalsIgnoreCase(position.getCode()));
+                                    && current.getSeatCode().equalsIgnoreCase(position.getCode())
+                                    && overlaps(startTime, endTime, current.getStart(), current.getEnd()));
             return new RoomPositionResponseDto(
                     position.getCode(),
                     position.getType(),
                     position.getEquipment(),
-                    !occupied
+                    !positionBlocked && !occupied,
+                    positionBlocked
             );
         }).toList();
+    }
+
+    @Override
+    public List<RoomPositionResponseDto> listRoomPositionsOverview(Long roomId) {
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sala com id " + roomId + " nao encontrada."));
+        return room.getPositions().stream()
+                .map(position -> new RoomPositionResponseDto(
+                        position.getCode(),
+                        position.getType(),
+                        position.getEquipment(),
+                        !room.isBlocked() && !position.isBlocked(),
+                        position.isBlocked()
+                ))
+                .toList();
+    }
+
+    @Override
+    public void setPositionBlocked(Long roomId, String positionCode, boolean blocked, String requesterRole) {
+        if (requesterRole == null || requesterRole.isBlank()) {
+            throw new BadRequestException("requesterRole e obrigatorio.");
+        }
+        if (!requesterRole.trim().equalsIgnoreCase("admin")) {
+            throw new ForbiddenException("Somente administrador pode bloquear ou desbloquear posicoes.");
+        }
+        if (positionCode == null || positionCode.isBlank()) {
+            throw new BadRequestException("positionCode e obrigatorio.");
+        }
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sala com id " + roomId + " nao encontrada."));
+        RoomPosition position = room.getPositions().stream()
+                .filter(p -> p.getCode() != null && p.getCode().equalsIgnoreCase(positionCode.trim()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Posicao " + positionCode + " nao encontrada na sala " + room.getName() + "."
+                ));
+        position.setBlocked(blocked);
+        roomRepository.save(room);
     }
 
     @Override

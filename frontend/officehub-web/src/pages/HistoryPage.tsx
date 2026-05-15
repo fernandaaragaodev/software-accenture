@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
-import type { Reservation } from "../types/officehub";
+import type { Reservation, SessionUser } from "../types/officehub";
 import { fetchReservations } from "../services/reservationsService";
 
-export function HistoryPage() {
+interface HistoryPageProps {
+  user: SessionUser;
+}
+
+export function HistoryPage({ user }: HistoryPageProps) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -13,7 +17,7 @@ export function HistoryPage() {
   async function loadHistory() {
     setLoading(true);
     try {
-      const data = await fetchReservations();
+      const data = await fetchReservations(user);
       setReservations(data);
       setError(null);
     } catch (err) {

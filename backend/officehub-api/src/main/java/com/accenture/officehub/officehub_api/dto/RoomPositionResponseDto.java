@@ -6,5 +6,6 @@ public record RoomPositionResponseDto(
         String code,
         String type,
         List<String> availableEquipment,
-        boolean available
+        boolean available,
+        boolean blocked
 ) {}

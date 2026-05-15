@@ -138,7 +138,7 @@ class ReservationServiceImplRulesTest {
     }
 
     @Test
-    void rejectsSecondReservationSameSeatNonOverlappingTimesSameDay() {
+    void allowsSecondReservationSameSeatNonOverlappingTimesSameDay() {
         String d = futureDate();
         service.createReservation(new ReservationRequestDto(
                 1L, "Maria", "Maria", "employee", "A1", "Mesa maior",
@@ -148,13 +148,29 @@ class ReservationServiceImplRulesTest {
                 1L, "Joao", "Joao", "employee", "A1", "Mesa maior",
                 List.of("Monitor 27"), d, "12:00", "17:00"
         );
-        assertThatThrownBy(() -> service.createReservation(second))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("ja esta reservada");
+        var dto = service.createReservation(second);
+        assertThat(dto.user()).isEqualTo("Joao");
+        assertThat(dto.seatCode()).isEqualTo("A1");
     }
 
     @Test
-    void managerCannotBookTwiceSameSeatSameDayDifferentSlots() {
+    void rejectsSecondReservationSameSeatOverlappingTimesSameDay() {
+        String d = futureDate();
+        service.createReservation(new ReservationRequestDto(
+                1L, "Maria", "Maria", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "09:00", "12:00"
+        ));
+        var second = new ReservationRequestDto(
+                1L, "Joao", "Joao", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "11:00", "17:00"
+        );
+        assertThatThrownBy(() -> service.createReservation(second))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ja esta reservada neste horario");
+    }
+
+    @Test
+    void managerCanBookTwiceSameSeatSameDayDifferentSlots() {
         String d = futureDate();
         service.createReservation(new ReservationRequestDto(
                 1L, "Gestor", "Colab1", "manager", "A1", "Mesa maior",
@@ -164,9 +180,28 @@ class ReservationServiceImplRulesTest {
                 1L, "Gestor", "Colab2", "manager", "A1", "Mesa maior",
                 List.of("Monitor 27"), d, "13:00", "17:00"
         );
-        assertThatThrownBy(() -> service.createReservation(second))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("ja esta reservada");
+        var dto = service.createReservation(second);
+        assertThat(dto.user()).isEqualTo("Colab2");
+    }
+
+    @Test
+    void employeeListReservationsReturnsOnlyOwn() {
+        String d = futureDate();
+        service.createReservation(new ReservationRequestDto(
+                1L, "Maria", "Maria", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "09:00", "12:00"
+        ));
+        service.createReservation(new ReservationRequestDto(
+                1L, "Joao", "Joao", "employee", "A2", "Mesa vazia",
+                List.of(), d, "09:00", "12:00"
+        ));
+
+        var mariaReservations = service.listReservations("Maria", "employee");
+        assertThat(mariaReservations).hasSize(1);
+        assertThat(mariaReservations.getFirst().user()).isEqualTo("Maria");
+
+        var allForAdmin = service.listReservations(null, "admin");
+        assertThat(allForAdmin).hasSize(2);
     }
 
     @Test

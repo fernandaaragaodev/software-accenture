@@ -78,10 +78,11 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
-    public List<ReservationResponseDto> listReservations() {
+    public List<ReservationResponseDto> listReservations(String requesterName, String requesterRole) {
         return withLock(() -> {
             doSynchronizeStatuses();
-            return reservationRepository.findAll().stream()
+            return filterReservationsForRequester(reservationRepository.findAll(), requesterName, requesterRole)
+                    .stream()
                     .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
                     .map(this::toDto)
                     .toList();
@@ -89,10 +90,14 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
-    public List<ReservationGroupResponseDto> listReservationGroups() {
+    public List<ReservationGroupResponseDto> listReservationGroups(String requesterName, String requesterRole) {
         return withLock(() -> {
             doSynchronizeStatuses();
-            List<Reservation> all = reservationRepository.findAll().stream()
+            List<Reservation> all = filterReservationsForRequester(
+                    reservationRepository.findAll(),
+                    requesterName,
+                    requesterRole
+            ).stream()
                     .sorted(Comparator.comparing(Reservation::getDate).thenComparing(Reservation::getStart))
                     .toList();
 
@@ -109,7 +114,7 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
-    public ReservationGroupResponseDto getReservationGroup(String groupId) {
+    public ReservationGroupResponseDto getReservationGroup(String groupId, String requesterName, String requesterRole) {
         return withLock(() -> {
             doSynchronizeStatuses();
             List<Reservation> all = reservationRepository.findAll();
@@ -120,7 +125,9 @@ public class ReservationServiceImpl implements ReservationService {
             if (group.isEmpty()) {
                 throw new ResourceNotFoundException("Grupo de reserva " + groupId + " nao encontrado.");
             }
-            return toGroupDto(groupId, group);
+            assertEmployeeCanAccessGroup(group, requesterName, requesterRole);
+            List<Reservation> visible = filterReservationsForRequester(group, requesterName, requesterRole);
+            return toGroupDto(groupId, visible);
         });
     }
 
@@ -397,6 +404,11 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         RoomPosition position = resolvePosition(room, request.seatCode());
+        if (position.isBlocked()) {
+            throw new BadRequestException(
+                    "Posicao " + position.getCode() + " indisponivel: bloqueada pelo administrador."
+            );
+        }
         assertSeatTypeMatches(position, request.seatType());
         List<String> normalizedEquipment = normalizeEquipmentList(request.requestedEquipment());
         validateRequestedEquipmentAgainstPosition(position, normalizedEquipment);
@@ -405,10 +417,11 @@ public class ReservationServiceImpl implements ReservationService {
                 .filter(reservation -> reservation.getStatus() != ReservationStatus.cancelled)
                 .filter(reservation -> reservation.getRoomId().equals(room.getId()))
                 .filter(reservation -> reservation.getDate().equals(date))
-                .anyMatch(reservation -> reservation.getSeatCode().equalsIgnoreCase(position.getCode()));
+                .filter(reservation -> reservation.getSeatCode().equalsIgnoreCase(position.getCode()))
+                .anyMatch(reservation -> overlaps(start, end, reservation.getStart(), reservation.getEnd()));
         if (seatAlreadyReserved) {
             throw new ConflictException(
-                    "Posicao " + position.getCode() + " ja esta reservada nesta data nesta sala. Cancele a reserva existente para liberar."
+                    "Posicao " + position.getCode() + " ja esta reservada neste horario nesta sala. Escolha outro horario ou posicao."
             );
         }
 
@@ -520,6 +533,42 @@ public class ReservationServiceImpl implements ReservationService {
 
     private boolean overlaps(LocalTime startA, LocalTime endA, LocalTime startB, LocalTime endB) {
         return startA.isBefore(endB) && endA.isAfter(startB);
+    }
+
+    private List<Reservation> filterReservationsForRequester(
+            List<Reservation> reservations,
+            String requesterName,
+            String requesterRole
+    ) {
+        if (!isEmployeeRole(requesterRole)) {
+            return reservations;
+        }
+        if (requesterName == null || requesterName.isBlank()) {
+            throw new BadRequestException("requesterName e obrigatorio para funcionario listar reservas.");
+        }
+        String employeeName = requesterName.trim();
+        return reservations.stream()
+                .filter(reservation -> reservation.getUser().equalsIgnoreCase(employeeName))
+                .toList();
+    }
+
+    private void assertEmployeeCanAccessGroup(
+            List<Reservation> group,
+            String requesterName,
+            String requesterRole
+    ) {
+        if (!isEmployeeRole(requesterRole)) {
+            return;
+        }
+        if (requesterName == null || requesterName.isBlank()) {
+            throw new BadRequestException("requesterName e obrigatorio para funcionario consultar reserva.");
+        }
+        String employeeName = requesterName.trim();
+        boolean hasOwnReservation = group.stream()
+                .anyMatch(reservation -> reservation.getUser().equalsIgnoreCase(employeeName));
+        if (!hasOwnReservation) {
+            throw new ForbiddenException("Sem permissao para consultar esta reserva.");
+        }
     }
 
     private void validateReservationDate(LocalDate date) {

@@ -45,7 +45,7 @@ public class InMemoryRoomRepository implements RoomRepository {
 
     private Room copy(Room room) {
         List<RoomPosition> positions = room.getPositions() == null ? new ArrayList<>() : room.getPositions().stream()
-                .map(p -> new RoomPosition(p.getCode(), p.getType(), p.getEquipment()))
+                .map(p -> new RoomPosition(p.getCode(), p.getType(), p.getEquipment(), p.isBlocked()))
                 .toList();
         return new Room(
                 room.getId(),

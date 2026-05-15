@@ -8,7 +8,9 @@ import {
 } from "../services/reservationsService";
 import {
   fetchRoomPositions,
+  fetchRoomPositionsOverview,
   fetchRooms,
+  setPositionBlocked,
   setRoomBlocked,
 } from "../services/roomsService";
 import {
@@ -84,6 +86,11 @@ export function RoomsPage({ user }: RoomsPageProps) {
   const [loadingPositions, setLoadingPositions] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [blockingRoomId, setBlockingRoomId] = useState<number | null>(null);
+  const [detailPositions, setDetailPositions] = useState<RoomPosition[]>([]);
+  const [loadingDetailPositions, setLoadingDetailPositions] = useState(false);
+  const [togglingPositionCode, setTogglingPositionCode] = useState<string | null>(
+    null,
+  );
   const [blockAdminPassword, setBlockAdminPassword] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<RoomSuggestion[]>([]);
@@ -411,6 +418,62 @@ export function RoomsPage({ user }: RoomsPageProps) {
     if (modal !== "reserve") return;
     void loadPositions();
   }, [modal, selectedRoom?.id, reserveForm.date, reserveForm.start, reserveForm.end]);
+
+  async function loadDetailPositions() {
+    if (!selectedRoom || !isAdmin) {
+      setDetailPositions([]);
+      return;
+    }
+    setLoadingDetailPositions(true);
+    try {
+      const data = await fetchRoomPositionsOverview(selectedRoom.id);
+      setDetailPositions(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel carregar as posicoes da sala.",
+      );
+    } finally {
+      setLoadingDetailPositions(false);
+    }
+  }
+
+  async function togglePositionBlock(positionCode: string, blocked: boolean) {
+    if (!selectedRoom) return;
+    setTogglingPositionCode(positionCode);
+    setError(null);
+    try {
+      await setPositionBlocked(
+        selectedRoom.id,
+        positionCode,
+        blocked,
+        user.role,
+      );
+      await loadDetailPositions();
+      setSuccessMessage(
+        blocked
+          ? `Posição ${positionCode} bloqueada.`
+          : `Posição ${positionCode} desbloqueada.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Nao foi possivel atualizar o bloqueio da posicao.",
+      );
+    } finally {
+      setTogglingPositionCode(null);
+    }
+  }
+
+  useEffect(() => {
+    if (modal !== "view" || !isAdmin) {
+      setDetailPositions([]);
+      return;
+    }
+    void loadDetailPositions();
+  }, [modal, selectedRoom?.id, isAdmin]);
 
   return (
     <div>
@@ -906,6 +969,108 @@ export function RoomsPage({ user }: RoomsPageProps) {
                 </div>
               </div>
             </div>
+            {isAdmin ? (
+              <div className="card card-sm mb-16">
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text3)",
+                    marginBottom: 10,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Gerenciar posições
+                </div>
+                {loadingDetailPositions ? (
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>
+                    Carregando posições...
+                  </div>
+                ) : detailPositions.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "var(--text3)" }}>
+                    Nenhuma posição cadastrada nesta sala.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    {detailPositions.map((position) => (
+                      <div
+                        key={position.code}
+                        style={{
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 10,
+                          padding: "10px 12px",
+                          background: position.blocked
+                            ? "rgba(255,77,109,0.06)"
+                            : "rgba(0,229,160,0.04)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>
+                            {position.code}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.4px",
+                              color: position.blocked ? "var(--red)" : "var(--green)",
+                            }}
+                          >
+                            {position.blocked ? "Bloqueada" : "Livre"}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "var(--text3)",
+                            marginBottom: 10,
+                          }}
+                        >
+                          {position.type}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{
+                            width: "100%",
+                            color: position.blocked ? undefined : "var(--red)",
+                          }}
+                          disabled={togglingPositionCode === position.code}
+                          onClick={() =>
+                            void togglePositionBlock(
+                              position.code,
+                              !position.blocked,
+                            )
+                          }
+                        >
+                          {togglingPositionCode === position.code
+                            ? "…"
+                            : position.blocked
+                              ? "Desbloquear"
+                              : "Bloquear"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
             <div className="modal-footer">
               {isAdmin ? (
                 selectedRoom.status === "unavailable" ? (
@@ -1222,6 +1387,7 @@ export function RoomsPage({ user }: RoomsPageProps) {
                       }}
                     >
                       {position.code} · {position.type}
+                      {position.blocked ? " · bloqueada" : ""}
                     </button>
                   ))}
                 </div>

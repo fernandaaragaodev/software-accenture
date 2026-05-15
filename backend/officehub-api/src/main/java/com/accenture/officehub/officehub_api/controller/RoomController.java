@@ -47,6 +47,31 @@ public class RoomController {
         return ResponseEntity.ok(roomService.listRoomPositions(id, date, start, end));
     }
 
+    @GetMapping("/{id}/positions/overview")
+    public ResponseEntity<List<RoomPositionResponseDto>> listPositionsOverview(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(roomService.listRoomPositionsOverview(id));
+    }
+
+    @PostMapping("/{id}/positions/{code}/block")
+    public ResponseEntity<Void> blockPosition(
+            @PathVariable("id") Long id,
+            @PathVariable("code") String code,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        roomService.setPositionBlocked(id, code, true, requesterRole);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/positions/{code}/unblock")
+    public ResponseEntity<Void> unblockPosition(
+            @PathVariable("id") Long id,
+            @PathVariable("code") String code,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        roomService.setPositionBlocked(id, code, false, requesterRole);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/block")
     public ResponseEntity<Void> blockRoom(
             @PathVariable("id") Long id,

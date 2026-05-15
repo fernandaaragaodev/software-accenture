@@ -62,7 +62,7 @@ export default function OfficeHubApp() {
       case "reservations":
         return <ReservationsPage user={user} />;
       case "history":
-        return <HistoryPage />;
+        return <HistoryPage user={user} />;
       case "notifications":
         return (
           <NotificationsPage
