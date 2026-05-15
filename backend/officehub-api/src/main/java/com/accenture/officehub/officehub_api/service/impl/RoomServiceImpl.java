@@ -83,8 +83,10 @@ public class RoomServiceImpl implements RoomService {
                     .filter(current -> current.getRoomId().equals(roomId))
                     .filter(current -> current.getStatus() != ReservationStatus.cancelled)
                     .filter(current -> current.getDate().equals(reservationDate))
-                    .filter(current -> position.getCode().equals(current.getSeatCode()))
-                    .anyMatch(current -> overlaps(startTime, endTime, current.getStart(), current.getEnd()));
+                    .anyMatch(current ->
+                            current.getSeatCode() != null
+                                    && position.getCode() != null
+                                    && current.getSeatCode().equalsIgnoreCase(position.getCode()));
             return new RoomPositionResponseDto(
                     position.getCode(),
                     position.getType(),

@@ -401,14 +401,15 @@ public class ReservationServiceImpl implements ReservationService {
         List<String> normalizedEquipment = normalizeEquipmentList(request.requestedEquipment());
         validateRequestedEquipmentAgainstPosition(position, normalizedEquipment);
 
-        boolean hasSeatConflict = existingReservations.stream()
+        boolean seatAlreadyReserved = existingReservations.stream()
                 .filter(reservation -> reservation.getStatus() != ReservationStatus.cancelled)
                 .filter(reservation -> reservation.getRoomId().equals(room.getId()))
                 .filter(reservation -> reservation.getDate().equals(date))
-                .filter(reservation -> reservation.getSeatCode().equalsIgnoreCase(position.getCode()))
-                .anyMatch(reservation -> overlaps(start, end, reservation.getStart(), reservation.getEnd()));
-        if (hasSeatConflict) {
-            throw new ConflictException("Conflito de horario: posicao " + position.getCode() + " indisponivel nesse intervalo.");
+                .anyMatch(reservation -> reservation.getSeatCode().equalsIgnoreCase(position.getCode()));
+        if (seatAlreadyReserved) {
+            throw new ConflictException(
+                    "Posicao " + position.getCode() + " ja esta reservada nesta data nesta sala. Cancele a reserva existente para liberar."
+            );
         }
 
         if (role.equals("employee")) {

@@ -3,6 +3,16 @@ import { useState } from "react";
 type HttpMethod = "GET" | "POST" | "DELETE" | "PATCH";
 
 const ENDPOINTS: [HttpMethod, string, string][] = [
+  [
+    "GET",
+    "/api/v1/workspace/context?userName=",
+    "Contexto do colaborador (equipe, perfil profissional, colegas visíveis)",
+  ],
+  [
+    "GET",
+    "/api/v1/workspace/room-suggestions?userName=&date=YYYY-MM-DD&start=HH:mm&end=HH:mm&limit=5",
+    "Sugestão de salas (score: disponibilidade no intervalo, andar da equipe, perfil, proximidade a colegas)",
+  ],
   ["GET", "/api/v1/rooms", "Listar salas"],
   ["GET", "/api/v1/rooms/:id/status", "Status da sala"],
   ["GET", "/api/v1/rooms/:id/positions?date=YYYY-MM-DD&start=HH:mm&end=HH:mm", "Posições e disponibilidade no intervalo"],

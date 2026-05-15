@@ -3,6 +3,7 @@ package com.accenture.officehub.officehub_api.service.impl;
 import com.accenture.officehub.officehub_api.dto.ReservationRequestDto;
 import com.accenture.officehub.officehub_api.enums.RoomStatus;
 import com.accenture.officehub.officehub_api.exception.BadRequestException;
+import com.accenture.officehub.officehub_api.exception.ConflictException;
 import com.accenture.officehub.officehub_api.model.Room;
 import com.accenture.officehub.officehub_api.model.RoomPosition;
 import com.accenture.officehub.officehub_api.repository.inmemory.InMemoryReservationRepository;
@@ -130,8 +131,57 @@ class ReservationServiceImplRulesTest {
         var r2 = new ReservationRequestDto(1L, "Gestor", "U2", "manager", "B1", "Mesa vazia", List.of(), d, "10:00", "11:00");
 
         assertThatThrownBy(() -> service.createReservationsBatch(List.of(r1, r2)))
-                .hasMessageContaining("Conflito");
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ja esta reservada");
 
         assertThat(reservationRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void rejectsSecondReservationSameSeatNonOverlappingTimesSameDay() {
+        String d = futureDate();
+        service.createReservation(new ReservationRequestDto(
+                1L, "Maria", "Maria", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "09:00", "12:00"
+        ));
+        var second = new ReservationRequestDto(
+                1L, "Joao", "Joao", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "12:00", "17:00"
+        );
+        assertThatThrownBy(() -> service.createReservation(second))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ja esta reservada");
+    }
+
+    @Test
+    void managerCannotBookTwiceSameSeatSameDayDifferentSlots() {
+        String d = futureDate();
+        service.createReservation(new ReservationRequestDto(
+                1L, "Gestor", "Colab1", "manager", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "09:00", "12:00"
+        ));
+        var second = new ReservationRequestDto(
+                1L, "Gestor", "Colab2", "manager", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "13:00", "17:00"
+        );
+        assertThatThrownBy(() -> service.createReservation(second))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ja esta reservada");
+    }
+
+    @Test
+    void afterCancelSameSeatSameDayCanBeReservedAgain() {
+        String d = futureDate();
+        var created = service.createReservation(new ReservationRequestDto(
+                1L, "Maria", "Maria", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "09:00", "12:00"
+        ));
+        service.cancelReservation(created.id(), "Maria", "employee");
+        var after = service.createReservation(new ReservationRequestDto(
+                1L, "Joao", "Joao", "employee", "A1", "Mesa maior",
+                List.of("Monitor 27"), d, "12:00", "17:00"
+        ));
+        assertThat(after.seatCode()).isEqualTo("A1");
+        assertThat(after.user()).isEqualTo("Joao");
     }
 }

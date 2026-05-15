@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal } from "../components/Modal";
 import { StatusBadge } from "../components/StatusBadge";
 import type { Room, RoomPosition, SessionUser } from "../types/officehub";
@@ -11,6 +11,10 @@ import {
   fetchRooms,
   setRoomBlocked,
 } from "../services/roomsService";
+import {
+  fetchRoomSuggestions,
+  type RoomSuggestion,
+} from "../services/workplaceService";
 
 type RoomsModal = "add" | "view" | "reserve" | "upload" | "confirmBlock" | null;
 
@@ -82,6 +86,10 @@ export function RoomsPage({ user }: RoomsPageProps) {
   const [blockingRoomId, setBlockingRoomId] = useState<number | null>(null);
   const [blockAdminPassword, setBlockAdminPassword] = useState("");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<RoomSuggestion[]>([]);
+  const [suggLoading, setSuggLoading] = useState(false);
+  const [suggErr, setSuggErr] = useState<string | null>(null);
+  const prevModalRef = useRef<string | null>(null);
 
   const canEdit = user.role === "admin" || user.role === "manager";
   const isAdmin = user.role === "admin";
@@ -113,6 +121,14 @@ export function RoomsPage({ user }: RoomsPageProps) {
     const timer = window.setTimeout(() => setSuccessMessage(null), 5000);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    if (modal === "reserve" && prevModalRef.current !== "reserve") {
+      setSuggestions([]);
+      setSuggErr(null);
+    }
+    prevModalRef.current = modal;
+  }, [modal]);
 
   const filtered = rooms.filter((r) => {
     if (filter === "available" && r.status !== "available") return false;
@@ -301,6 +317,53 @@ export function RoomsPage({ user }: RoomsPageProps) {
   function simulateAI() {
     setAiLoading(true);
     setTimeout(() => setAiLoading(false), 2200);
+  }
+
+  async function loadSuggestionsForSlot() {
+    if (!reserveForm.date || !reserveForm.start || !reserveForm.end) {
+      setSuggErr("Preencha data e horário para buscar sugestões.");
+      return;
+    }
+    setSuggLoading(true);
+    setSuggErr(null);
+    try {
+      const data = await fetchRoomSuggestions({
+        userName: user.name,
+        date: reserveForm.date,
+        start: reserveForm.start,
+        end: reserveForm.end,
+        limit: 6,
+      });
+      setSuggestions(data);
+    } catch (err) {
+      setSuggestions([]);
+      setSuggErr(
+        err instanceof Error ? err.message : "Falha ao carregar sugestões.",
+      );
+    } finally {
+      setSuggLoading(false);
+    }
+  }
+
+  function applySuggestion(s: RoomSuggestion) {
+    const target = rooms.find((r) => r.id === s.roomId);
+    if (!target) {
+      setSuggErr("Atualize a lista de salas e tente novamente.");
+      return;
+    }
+    if (target.status === "unavailable") {
+      setSuggErr("Esta sala está bloqueada; escolha outra sugestão.");
+      return;
+    }
+    setSelectedRoom(target);
+    setReserveForm((prev) => ({
+      ...prev,
+      seatCode: "",
+      seatType: "",
+      selectedEquipment: [],
+    }));
+    setSelectedBatchSeats([]);
+    setSuggErr(null);
   }
 
   async function loadPositions() {
@@ -1006,6 +1069,108 @@ export function RoomsPage({ user }: RoomsPageProps) {
                   }
                 />
               </div>
+            </div>
+            <div
+              style={{
+                marginBottom: 14,
+                padding: 12,
+                borderRadius: 10,
+                border: "1px solid rgba(0,212,255,0.2)",
+                background: "rgba(0,212,255,0.06)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--accent)",
+                  marginBottom: 8,
+                }}
+              >
+                Sugestões (equipe + perfil profissional)
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10 }}>
+                O backend pontua salas com vagas no intervalo, andar preferido da equipe,
+                recursos alinhados ao seu perfil e proximidade a colegas com reserva no
+                mesmo horário (mesmas regras de antecedência de 7 dias).
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ marginBottom: 10 }}
+                disabled={suggLoading}
+                onClick={() => void loadSuggestionsForSlot()}
+              >
+                {suggLoading ? "Calculando…" : "Buscar sugestões para este horário"}
+              </button>
+              {suggErr ? (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--red)",
+                    marginBottom: 8,
+                  }}
+                >
+                  {suggErr}
+                </div>
+              ) : null}
+              {suggestions.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {suggestions.map((s) => (
+                    <div
+                      key={s.roomId}
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        fontSize: 12,
+                        color: "var(--text2)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: "var(--text1)" }}>{s.name}</strong>
+                          <span style={{ color: "var(--text3)" }}>
+                            {" "}
+                            · {s.floor} · score {s.score}
+                          </span>
+                          <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                            {s.freeDesksInInterval} vaga(s) no intervalo
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={selectedRoom?.id === s.roomId}
+                          onClick={() => applySuggestion(s)}
+                        >
+                          {selectedRoom?.id === s.roomId ? "Sala atual" : "Usar esta sala"}
+                        </button>
+                      </div>
+                      <ul
+                        style={{
+                          margin: "6px 0 0",
+                          paddingLeft: 16,
+                          fontSize: 11,
+                          color: "var(--text3)",
+                        }}
+                      >
+                        {s.scoreReasons.map((r) => (
+                          <li key={r}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="form-group">
               <label className="form-label">Posições disponíveis</label>

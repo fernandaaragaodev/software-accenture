@@ -1,12 +1,17 @@
 package com.accenture.officehub.officehub_api.config;
 
+import com.accenture.officehub.officehub_api.enums.ProfessionalProfile;
 import com.accenture.officehub.officehub_api.enums.ReservationStatus;
 import com.accenture.officehub.officehub_api.enums.RoomStatus;
+import com.accenture.officehub.officehub_api.model.Employee;
 import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.model.Room;
 import com.accenture.officehub.officehub_api.model.RoomPosition;
+import com.accenture.officehub.officehub_api.model.Team;
+import com.accenture.officehub.officehub_api.repository.EmployeeRepository;
 import com.accenture.officehub.officehub_api.repository.ReservationRepository;
 import com.accenture.officehub.officehub_api.repository.RoomRepository;
+import com.accenture.officehub.officehub_api.repository.TeamRepository;
 import com.accenture.officehub.officehub_api.service.NotificationService;
 import com.accenture.officehub.officehub_api.service.ReservationService;
 import jakarta.annotation.PostConstruct;
@@ -21,23 +26,42 @@ public class SeedDataConfig {
 
     private final RoomRepository roomRepository;
     private final ReservationRepository reservationRepository;
+    private final TeamRepository teamRepository;
+    private final EmployeeRepository employeeRepository;
     private final ReservationService reservationService;
     private final NotificationService notificationService;
 
     public SeedDataConfig(
             RoomRepository roomRepository,
             ReservationRepository reservationRepository,
+            TeamRepository teamRepository,
+            EmployeeRepository employeeRepository,
             ReservationService reservationService,
             NotificationService notificationService
     ) {
         this.roomRepository = roomRepository;
         this.reservationRepository = reservationRepository;
+        this.teamRepository = teamRepository;
+        this.employeeRepository = employeeRepository;
         this.reservationService = reservationService;
         this.notificationService = notificationService;
     }
 
     @PostConstruct
     public void seed() {
+        teamRepository.saveAll(List.of(
+                new Team(1L, "Squad Alpha", "2o andar"),
+                new Team(2L, "Squad Beta", "3o andar")
+        ));
+        employeeRepository.saveAll(List.of(
+                new Employee(1L, "Maria Souza", 1L, ProfessionalProfile.GESTAO_PROJETOS, false, "09:00"),
+                new Employee(2L, "Carlos Lima", 1L, ProfessionalProfile.DESENVOLVIMENTO, false, "08:30"),
+                new Employee(3L, "Pedro Alves", 1L, ProfessionalProfile.DESENVOLVIMENTO, true, "10:00"),
+                new Employee(4L, "Ana Pereira", 2L, ProfessionalProfile.DESIGN_ENTREGA, false, "08:45"),
+                new Employee(5L, "Julia Costa", 2L, ProfessionalProfile.NEGOCIOS_ANALISE, false, "09:30"),
+                new Employee(6L, "Rafael Torres", 1L, ProfessionalProfile.GESTAO_PROJETOS, false, "08:00")
+        ));
+
         roomRepository.saveAll(List.of(
                 // Sala Apolo — 10 posições, mix de mesa vazia e equipadas
                 new Room(1L, "Sala Apolo", 12, RoomStatus.available,
@@ -145,12 +169,15 @@ public class SeedDataConfig {
                         ))
         ));
 
+        LocalDate overlapDemoDay = LocalDate.now().plusDays(8);
+
         reservationRepository.saveAll(List.of(
                 new Reservation(1L, 1L, "Sala Apolo", "Maria Souza", "Maria Souza", "manager", null, "P1", "Mesa vazia", List.of("Mesa ergonômica"), LocalDate.parse("2025-06-10"), LocalTime.parse("09:00"), LocalTime.parse("11:00"), ReservationStatus.confirmed),
                 new Reservation(2L, 2L, "Sala Hermes", "Carlos Lima", "Carlos Lima", "employee", null, "P2", "Mesa maior", List.of("Monitor 27"), LocalDate.parse("2025-06-10"), LocalTime.parse("14:00"), LocalTime.parse("16:00"), ReservationStatus.active),
                 new Reservation(3L, 3L, "Sala Athena", "Ana Pereira", "Ana Pereira", "manager", null, "P3", "Mesa com PC maior", List.of("PC Workstation"), LocalDate.parse("2025-06-11"), LocalTime.parse("10:00"), LocalTime.parse("12:00"), ReservationStatus.confirmed),
                 new Reservation(4L, 4L, "Sala Zeus", "Pedro Alves", "Pedro Alves", "manager", null, "P1", "Mesa vazia", List.of("Mesa ergonômica"), LocalDate.parse("2025-06-09"), LocalTime.parse("08:00"), LocalTime.parse("09:30"), ReservationStatus.cancelled),
-                new Reservation(5L, 5L, "Sala Cronos", "Julia Costa", "Julia Costa", "manager", null, "P2", "Mesa maior", List.of("Monitor 27"), LocalDate.parse("2025-06-12"), LocalTime.parse("15:00"), LocalTime.parse("17:00"), ReservationStatus.confirmed)
+                new Reservation(5L, 5L, "Sala Cronos", "Julia Costa", "Julia Costa", "manager", null, "P2", "Mesa maior", List.of("Monitor 27"), LocalDate.parse("2025-06-12"), LocalTime.parse("15:00"), LocalTime.parse("17:00"), ReservationStatus.confirmed),
+                new Reservation(6L, 1L, "Sala Apolo", "Carlos Lima", "Carlos Lima", "employee", null, "P2", "Mesa maior", List.of("Monitor 27"), overlapDemoDay, LocalTime.parse("09:00"), LocalTime.parse("12:00"), ReservationStatus.confirmed)
         ));
 
         reservationRepository.findById(1L).ifPresent(notificationService::createReservationConfirmedNotification);
