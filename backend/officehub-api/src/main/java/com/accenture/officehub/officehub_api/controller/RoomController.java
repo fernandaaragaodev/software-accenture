@@ -1,5 +1,7 @@
 package com.accenture.officehub.officehub_api.controller;
 
+import com.accenture.officehub.officehub_api.dto.AvailablePositionTypeDto;
+import com.accenture.officehub.officehub_api.dto.AvailableRoomForReservationDto;
 import com.accenture.officehub.officehub_api.dto.RoomBlockRequestDto;
 import com.accenture.officehub.officehub_api.dto.RoomResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomPositionResponseDto;
@@ -30,6 +32,25 @@ public class RoomController {
     @GetMapping
     public ResponseEntity<List<RoomResponseDto>> listRooms() {
         return ResponseEntity.ok(roomService.listRooms());
+    }
+
+    @GetMapping("/available-position-types")
+    public ResponseEntity<List<AvailablePositionTypeDto>> listAvailablePositionTypes(
+            @RequestParam("date") String date,
+            @RequestParam("start") String start,
+            @RequestParam("end") String end
+    ) {
+        return ResponseEntity.ok(roomService.listAvailablePositionTypes(date, start, end));
+    }
+
+    @GetMapping("/available")
+    public ResponseEntity<List<AvailableRoomForReservationDto>> listAvailableRooms(
+            @RequestParam("date") String date,
+            @RequestParam("start") String start,
+            @RequestParam("end") String end,
+            @RequestParam("seatType") String seatType
+    ) {
+        return ResponseEntity.ok(roomService.listAvailableRoomsForReservation(date, start, end, seatType));
     }
 
     @GetMapping("/{id}/status")
