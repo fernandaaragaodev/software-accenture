@@ -1,40 +1,8 @@
 import { apiRequest } from "./api";
 import type { Room, RoomPosition } from "../types/officehub";
 
-export interface AvailablePositionType {
-  type: string;
-  availableCount: number;
-}
-
-export interface AvailableRoomForReservation extends Room {
-  matchingAvailablePositions: number;
-}
-
 export async function fetchRooms(): Promise<Room[]> {
   return apiRequest<Room[]>("/rooms");
-}
-
-export async function fetchAvailablePositionTypes(
-  date: string,
-  start: string,
-  end: string,
-): Promise<AvailablePositionType[]> {
-  const params = new URLSearchParams({ date, start, end });
-  return apiRequest<AvailablePositionType[]>(
-    `/rooms/available-position-types?${params.toString()}`,
-  );
-}
-
-export async function fetchAvailableRoomsForReservation(
-  date: string,
-  start: string,
-  end: string,
-  seatType: string,
-): Promise<AvailableRoomForReservation[]> {
-  const params = new URLSearchParams({ date, start, end, seatType });
-  return apiRequest<AvailableRoomForReservation[]>(
-    `/rooms/available?${params.toString()}`,
-  );
 }
 
 export async function fetchRoomPositions(

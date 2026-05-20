@@ -1,7 +1,5 @@
 package com.accenture.officehub.officehub_api.service.impl;
 
-import com.accenture.officehub.officehub_api.dto.AvailablePositionTypeDto;
-import com.accenture.officehub.officehub_api.dto.AvailableRoomForReservationDto;
 import com.accenture.officehub.officehub_api.dto.RoomResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomPositionResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomStatusResponseDto;
@@ -22,10 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class RoomServiceImpl implements RoomService {
@@ -54,68 +49,6 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public List<AvailablePositionTypeDto> listAvailablePositionTypes(String date, String start, String end) {
-        reservationService.synchronizeStatuses();
-        ReservationSlot slot = parseSlot(date, start, end);
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for (Room room : roomRepository.findAll()) {
-            if (room.isBlocked() || room.getPositions() == null) {
-                continue;
-            }
-            for (RoomPosition position : room.getPositions()) {
-                if (!isPositionAvailable(room, position, slot)) {
-                    continue;
-                }
-                String type = position.getType() == null ? "" : position.getType().trim();
-                if (type.isEmpty()) {
-                    continue;
-                }
-                counts.merge(type, 1, Integer::sum);
-            }
-        }
-        return counts.entrySet().stream()
-                .sorted(Comparator.comparing(Map.Entry::getKey))
-                .map(e -> new AvailablePositionTypeDto(e.getKey(), e.getValue()))
-                .toList();
-    }
-
-    @Override
-    public List<AvailableRoomForReservationDto> listAvailableRoomsForReservation(
-            String date,
-            String start,
-            String end,
-            String seatType
-    ) {
-        if (seatType == null || seatType.isBlank()) {
-            throw new BadRequestException("seatType e obrigatorio.");
-        }
-        reservationService.synchronizeStatuses();
-        ReservationSlot slot = parseSlot(date, start, end);
-        String normalizedType = seatType.trim();
-        return roomRepository.findAll().stream()
-                .filter(room -> !room.isBlocked())
-                .map(room -> {
-                    int matching = countAvailablePositionsOfType(room, normalizedType, slot);
-                    return matching > 0
-                            ? new AvailableRoomForReservationDto(
-                            room.getId(),
-                            room.getName(),
-                            room.getCapacity(),
-                            room.getDesks(),
-                            displayStatus(room),
-                            room.getEquipment(),
-                            room.getFloor(),
-                            room.getArea(),
-                            matching
-                    )
-                            : null;
-                })
-                .filter(dto -> dto != null)
-                .sorted(Comparator.comparing(AvailableRoomForReservationDto::name))
-                .toList();
-    }
-
-    @Override
     public RoomStatusResponseDto getRoomStatus(Long roomId) {
         reservationService.synchronizeStatuses();
         Room room = roomRepository.findById(roomId)
@@ -128,7 +61,12 @@ public class RoomServiceImpl implements RoomService {
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sala com id " + roomId + " nao encontrada."));
 
-        ReservationSlot slot = parseSlot(date, start, end);
+        LocalDate reservationDate = parseDate(date);
+        LocalTime startTime = parseTime(start, "start");
+        LocalTime endTime = parseTime(end, "end");
+        if (!startTime.isBefore(endTime)) {
+            throw new BadRequestException("Horario invalido: start deve ser antes de end.");
+        }
 
         if (room.isBlocked()) {
             return room.getPositions().stream()
@@ -144,12 +82,20 @@ public class RoomServiceImpl implements RoomService {
 
         return room.getPositions().stream().map(position -> {
             boolean positionBlocked = position.isBlocked();
-            boolean available = !positionBlocked && isPositionAvailable(room, position, slot);
+            boolean occupied = !positionBlocked && reservationRepository.findAll().stream()
+                    .filter(current -> current.getRoomId().equals(roomId))
+                    .filter(current -> current.getStatus() != ReservationStatus.cancelled)
+                    .filter(current -> current.getDate().equals(reservationDate))
+                    .anyMatch(current ->
+                            current.getSeatCode() != null
+                                    && position.getCode() != null
+                                    && current.getSeatCode().equalsIgnoreCase(position.getCode())
+                                    && overlaps(startTime, endTime, current.getStart(), current.getEnd()));
             return new RoomPositionResponseDto(
                     position.getCode(),
                     position.getType(),
                     position.getEquipment(),
-                    available,
+                    !positionBlocked && !occupied,
                     positionBlocked
             );
         }).toList();
@@ -240,49 +186,6 @@ public class RoomServiceImpl implements RoomService {
                 (int) occupiedDesks
         );
     }
-
-    private int countAvailablePositionsOfType(Room room, String seatType, ReservationSlot slot) {
-        if (room.getPositions() == null) {
-            return 0;
-        }
-        int count = 0;
-        for (RoomPosition position : room.getPositions()) {
-            if (position.getType() == null || !position.getType().equalsIgnoreCase(seatType)) {
-                continue;
-            }
-            if (isPositionAvailable(room, position, slot)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private boolean isPositionAvailable(Room room, RoomPosition position, ReservationSlot slot) {
-        if (room.isBlocked() || position.isBlocked()) {
-            return false;
-        }
-        return !reservationRepository.findAll().stream()
-                .filter(current -> current.getRoomId().equals(room.getId()))
-                .filter(current -> current.getStatus() != ReservationStatus.cancelled)
-                .filter(current -> current.getDate().equals(slot.date()))
-                .anyMatch(current ->
-                        current.getSeatCode() != null
-                                && position.getCode() != null
-                                && current.getSeatCode().equalsIgnoreCase(position.getCode())
-                                && overlaps(slot.start(), slot.end(), current.getStart(), current.getEnd()));
-    }
-
-    private ReservationSlot parseSlot(String date, String start, String end) {
-        LocalDate reservationDate = parseDate(date);
-        LocalTime startTime = parseTime(start, "start");
-        LocalTime endTime = parseTime(end, "end");
-        if (!startTime.isBefore(endTime)) {
-            throw new BadRequestException("Horario invalido: start deve ser antes de end.");
-        }
-        return new ReservationSlot(reservationDate, startTime, endTime);
-    }
-
-    private record ReservationSlot(LocalDate date, LocalTime start, LocalTime end) {}
 
     private LocalDate parseDate(String value) {
         try {

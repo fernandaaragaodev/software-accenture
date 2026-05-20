@@ -14,16 +14,6 @@ const ENDPOINTS: [HttpMethod, string, string][] = [
     "Sugestão de salas (score: disponibilidade no intervalo, andar da equipe, perfil, proximidade a colegas)",
   ],
   ["GET", "/api/v1/rooms", "Listar salas"],
-  [
-    "GET",
-    "/api/v1/rooms/available-position-types?date=YYYY-MM-DD&start=HH:mm&end=HH:mm",
-    "Tipos de posição com vagas no intervalo (antes de escolher a sala)",
-  ],
-  [
-    "GET",
-    "/api/v1/rooms/available?date=YYYY-MM-DD&start=HH:mm&end=HH:mm&seatType=",
-    "Salas com posições livres do tipo indicado no intervalo",
-  ],
   ["GET", "/api/v1/rooms/:id/status", "Status da sala"],
   ["GET", "/api/v1/rooms/:id/positions?date=YYYY-MM-DD&start=HH:mm&end=HH:mm", "Posições e disponibilidade no intervalo"],
   ["GET", "/api/v1/rooms/:id/positions/overview", "Visão geral das posições (bloqueio admin)"],
