@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionUser } from "../../types/officehub";
 import { createReservation } from "../../services/reservationsService";
 import {
@@ -118,6 +118,8 @@ export function RoomsPremiumBooking({
   const [blockingPositionCode, setBlockingPositionCode] = useState<string | null>(
     null,
   );
+  const [resourcesFilterOpen, setResourcesFilterOpen] = useState(false);
+  const resourcesFilterRef = useRef<HTMLDivElement>(null);
 
   const allResources = useMemo(
     () => [...new Set(rooms.flatMap((r) => r.equipments))].sort(),
@@ -169,6 +171,27 @@ export function RoomsPremiumBooking({
   useEffect(() => {
     void loadRooms();
   }, [filterDate, filterStartTime, filterEndTime, loadRooms]);
+
+  useEffect(() => {
+    if (!resourcesFilterOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      if (
+        resourcesFilterRef.current &&
+        !resourcesFilterRef.current.contains(event.target as Node)
+      ) {
+        setResourcesFilterOpen(false);
+      }
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setResourcesFilterOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [resourcesFilterOpen]);
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
@@ -282,6 +305,7 @@ export function RoomsPremiumBooking({
   function clearFilters() {
     setSearchQuery("");
     setSelectedResources([]);
+    setResourcesFilterOpen(false);
   }
 
   function toggleModalResource(resource: string) {
@@ -451,7 +475,9 @@ export function RoomsPremiumBooking({
 
       {error ? <div className="rp-alert">{error}</div> : null}
 
-      <section className="rp-filters">
+      <section
+        className={`rp-filters ${resourcesFilterOpen ? "rp-filters--popover-open" : ""}`}
+      >
         <div className="rp-field rp-field--wide">
           <label className="rp-label" htmlFor="rp-search">
             Buscar sala ou estação
@@ -512,22 +538,77 @@ export function RoomsPremiumBooking({
             ))}
           </select>
         </div>
-        <div className="rp-field rp-field--wide">
-          <span className="rp-label">Recursos da posição</span>
-          <div className="rp-chips">
-            {allResources.map((resource) => (
-              <button
-                key={resource}
-                type="button"
-                className={`rp-chip ${selectedResources.includes(resource) ? "rp-chip--active" : ""}`}
-                onClick={() => toggleResource(resource)}
-              >
-                <span>{getEquipIcon(resource)}</span>
-                {resource}
-                {selectedResources.includes(resource) ? " ×" : ""}
-              </button>
-            ))}
-          </div>
+        <div className="rp-field rp-field--filter" ref={resourcesFilterRef}>
+          <span className="rp-label" id="rp-resources-label">
+            Recursos da posição
+          </span>
+          <button
+            type="button"
+            className={`rp-filter-trigger ${resourcesFilterOpen ? "rp-filter-trigger--open" : ""}`}
+            aria-haspopup="listbox"
+            aria-expanded={resourcesFilterOpen}
+            aria-labelledby="rp-resources-label"
+            onClick={() => setResourcesFilterOpen((open) => !open)}
+          >
+            <svg
+              className="rp-filter-trigger-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            <span>Filtrar</span>
+            {selectedResources.length > 0 ? (
+              <span className="rp-filter-badge">{selectedResources.length}</span>
+            ) : null}
+          </button>
+          {resourcesFilterOpen ? (
+            <div className="rp-filter-popover" role="listbox" aria-multiselectable="true">
+              <p className="rp-filter-popover-title">Recursos necessários na sala</p>
+              {allResources.length === 0 ? (
+                <p className="rp-filter-popover-empty">Nenhum recurso cadastrado.</p>
+              ) : (
+                <ul className="rp-filter-options">
+                  {allResources.map((resource) => {
+                    const checked = selectedResources.includes(resource);
+                    return (
+                      <li key={resource}>
+                        <label
+                          className={`rp-filter-option ${checked ? "rp-filter-option--checked" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleResource(resource)}
+                          />
+                          <span className="rp-filter-option-icon" aria-hidden>
+                            {getEquipIcon(resource)}
+                          </span>
+                          <span className="rp-filter-option-label">{resource}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {selectedResources.length > 0 ? (
+                <button
+                  type="button"
+                  className="rp-filter-popover-clear"
+                  onClick={() => setSelectedResources([])}
+                >
+                  Limpar seleção
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <button type="button" className="rp-link-btn" onClick={clearFilters}>
           Limpar filtros
