@@ -49,7 +49,7 @@ export const NAV: NavItem[] = [
 
 export const PAGE_TITLES: Record<PageId, string> = {
   dashboard: "Painel geral",
-  rooms: "Salas e Escritórios",
+  rooms: "Reserva de Posições",
   reservations: "Reservas",
   history: "Histórico",
   notifications: "Notificações",
