@@ -8,7 +8,7 @@ export interface SessionUser {
   avatar?: string;
 }
 
-export type RoomStatus = "available" | "occupied" | "reserved";
+export type RoomStatus = "available" | "unavailable" | "occupied" | "reserved";
 
 export interface Room {
   id: number;
@@ -19,6 +19,7 @@ export interface Room {
   equipment: string[];
   floor: string;
   area: number;
+  occupiedDesks: number;
 }
 
 export type ReservationStatus = "confirmed" | "active" | "cancelled";
@@ -27,10 +28,37 @@ export interface Reservation {
   id: number;
   room: string;
   user: string;
+  requesterName?: string;
+  requesterRole?: "admin" | "manager" | "employee";
+  reservationGroupId?: string | null;
+  seatCode?: string;
+  seatType?: string;
+  requestedEquipment?: string[];
   date: string;
   start: string;
   end: string;
   status: ReservationStatus;
+}
+
+export interface CreateReservationPayload {
+  roomId: number;
+  requesterName: string;
+  user: string;
+  requesterRole: "admin" | "manager" | "employee";
+  seatCode: string;
+  seatType: string;
+  requestedEquipment: string[];
+  date: string;
+  start: string;
+  end: string;
+}
+
+export interface RoomPosition {
+  code: string;
+  type: string;
+  availableEquipment: string[];
+  available: boolean;
+  blocked: boolean;
 }
 
 export type DirectoryUserStatus = "active" | "inactive";
@@ -46,15 +74,21 @@ export interface DirectoryUser {
 
 export interface NotificationItem {
   id: number;
+  type: "reservation_confirmed" | "reservation_cancelled" | string;
   text: string;
-  time: string;
   color: string;
   read: boolean;
+  createdAt: string;
+  reservationId: number | null;
+  reservationGroupId: string | null;
+  /** Nome do usuario que originou o evento (visibilidade no backend). */
+  actorUserName?: string | null;
 }
 
 export type PageId =
   | "dashboard"
   | "rooms"
+  | "teams"
   | "reservations"
   | "history"
   | "notifications"

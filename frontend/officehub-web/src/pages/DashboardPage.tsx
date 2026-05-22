@@ -1,4 +1,9 @@
+import { useEffect, useState } from "react";
 import type { SessionUser } from "../types/officehub";
+import {
+  fetchWorkplaceContext,
+  type WorkplaceContext,
+} from "../services/workplaceService";
 
 const DESKS_DATA: { name: string; status: string }[] = [
   { name: "M1", status: "desk-free" },
@@ -102,6 +107,38 @@ interface DashboardPageProps {
 }
 
 export function DashboardPage({ user }: DashboardPageProps) {
+  const [ctx, setCtx] = useState<WorkplaceContext | null>(null);
+  const [ctxErr, setCtxErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchWorkplaceContext(user.name);
+        if (!cancelled) {
+          setCtx(data);
+          setCtxErr(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setCtxErr(
+            e instanceof Error ? e.message : "Nao foi possivel carregar o contexto.",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user.name]);
+
+  const todayLabel = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <div>
       <div className="mb-24">
@@ -116,9 +153,126 @@ export function DashboardPage({ user }: DashboardPageProps) {
           Bom dia, {user.name.split(" ")[0]} 👋
         </div>
         <div style={{ fontSize: 13, color: "var(--text3)" }}>
-          Segunda-feira, 10 de junho de 2025 — Visão geral dos espaços
+          {todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1)} — Visão geral
+          dos espaços
         </div>
       </div>
+
+      {ctxErr ? (
+        <div
+          style={{
+            marginBottom: 16,
+            fontSize: 12,
+            color: "var(--red)",
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "1px solid rgba(255,77,109,0.25)",
+            background: "rgba(255,77,109,0.08)",
+          }}
+        >
+          {ctxErr}
+        </div>
+      ) : null}
+
+      {ctx ? (
+        <div className="card mb-24">
+          <div className="section-header">
+            <span className="section-title">Seu contexto no escritório</span>
+            <span className="chip" style={{ fontSize: 11 }}>
+              {ctx.employeeRegistered ? "Cadastro local" : "Perfil padrão"}
+            </span>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 16,
+              fontSize: 13,
+              color: "var(--text2)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 6,
+                }}
+              >
+                Equipe
+              </div>
+              <div style={{ fontWeight: 600, color: "var(--text1)" }}>
+                {ctx.teamName ?? "—"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 4 }}>
+                Andar preferido: {ctx.teamPreferredFloor ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 6,
+                }}
+              >
+                Perfil profissional
+              </div>
+              <div style={{ fontWeight: 600, color: "var(--text1)" }}>
+                {ctx.profileLabel}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 4 }}>
+                {ctx.professionalProfile}
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 6,
+                }}
+              >
+                Colegas (presença visível)
+              </div>
+              {ctx.visibleColleagues.length === 0 ? (
+                <span style={{ color: "var(--text3)" }}>Nenhum colega listado</span>
+              ) : (
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 18,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {ctx.visibleColleagues.map((c) => (
+                    <li key={c.name}>
+                      <span style={{ color: "var(--text1)", fontWeight: 500 }}>
+                        {c.name}
+                      </span>
+                      {c.typicalStartTime ? (
+                        <span style={{ color: "var(--text3)" }}>
+                          {" "}
+                          · chegada típica {c.typicalStartTime}
+                        </span>
+                      ) : null}
+                      <div style={{ fontSize: 11, color: "var(--text3)" }}>
+                        {c.profileLabel}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="stat-grid">
         {STATS.map((s) => (

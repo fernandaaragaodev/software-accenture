@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reserva de Posições - Premium SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#060B16',
+                        card: '#0F172A',
+                        highlight: '#00D4FF',
+                        success: '#22C55E',
+                        error: '#EF4444',
+                        text: '#E2E8F0',
+                        muted: '#94A3B8',
+                        border: '#1E293B',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'slide-up': 'slideUp 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #060B16;
+            color: #E2E8F0;
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #1E293B;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+        [x-cloak] { display: none !important; }
+        
+        .skeleton {
+            background: linear-gradient(90deg, #0F172A 25%, #1E293B 50%, #0F172A 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+        }
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="font-sans antialiased" x-data="roomBookingApp()" x-init="init()">
+    
+    <!-- Header -->
+    <header class="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+        <div class="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <div class="flex flex-col">
+                    <h1 class="text-xl font-bold tracking-tight text-white">Reserva de Posições</h1>
+                    <p class="text-sm text-muted">Gerencie e reserve estações de trabalho</p>
+                </div>
+                
+                <!-- Global Search -->
+                <div class="hidden md:flex items-center bg-card border border-border rounded-lg px-3 py-1.5 w-80 focus-within:border-highlight/50 transition-all">
+                    <i data-lucide="search" class="w-4 h-4 text-muted"></i>
+                    <input type="text" x-model="searchQuery" placeholder="Buscar sala ou estação..." class="bg-transparent border-none outline-none text-sm ml-2 w-full text-text placeholder:text-muted/60">
+                    <kbd class="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-muted bg-border rounded border border-border">⌘K</kbd>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button @click="openModal()" class="hidden md:flex items-center gap-2 bg-highlight hover:bg-highlight/90 text-background px-4 py-2 rounded-lg font-semibold transition-all transform active:scale-95">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Nova Reserva
+                </button>
+                
+                <div class="flex items-center gap-2 border-l border-border pl-4">
+                    <button class="p-2 hover:bg-card rounded-lg relative text-muted transition-colors">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-background"></span>
+                    </button>
+                    <div class="flex items-center gap-3 ml-2 cursor-pointer hover:opacity-80 transition-opacity">
+                        <a :href="returnToUrl" class="hidden sm:block text-sm text-muted hover:text-highlight transition-colors mr-2">← OfficeHub</a>
+                        <div class="text-right hidden sm:block">
+                            <p class="text-sm font-medium text-white" x-text="sessionUser?.name ?? 'Usuário'"></p>
+                            <p class="text-xs text-muted capitalize" x-text="sessionUser?.role ?? ''"></p>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-highlight to-blue-600 flex items-center justify-center border-2 border-border overflow-hidden">
+                            <img :src="'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(sessionUser?.name ?? 'user')" alt="Avatar" class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-[1600px] mx-auto px-6 py-8">
+        
+        <!-- Filters Bar -->
+        <section class="mb-10">
+            <div class="flex flex-wrap items-end gap-4 lg:gap-6 bg-card/40 p-6 rounded-2xl border border-border glass-card">
+                
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Data da reserva</label>
+                    <div class="relative group">
+                        <i data-lucide="calendar" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-highlight transition-colors"></i>
+                        <input type="date" x-model="filterDate" :min="minReservationDate" @change="loadRooms()" class="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:border-highlight/50 outline-none transition-all">
+                    </div>
+                </div>
+
+                <div class="flex-1 min-w-[140px]">
+                    <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Início</label>
+                    <div class="relative group">
+                        <i data-lucide="clock" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-highlight transition-colors"></i>
+                        <select x-model="filterStartTime" @change="loadRooms()" class="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:border-highlight/50 outline-none appearance-none transition-all">
+                            <option value="08:00">08:00</option>
+                            <option value="09:00">09:00</option>
+                            <option value="10:00">10:00</option>
+                            <option value="11:00">11:00</option>
+                            <option value="13:00">13:00</option>
+                            <option value="14:00">14:00</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex-1 min-w-[140px]">
+                    <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Fim</label>
+                    <div class="relative group">
+                        <i data-lucide="clock" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-highlight transition-colors"></i>
+                        <select x-model="filterEndTime" @change="loadRooms()" class="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:border-highlight/50 outline-none appearance-none transition-all">
+                            <option value="09:00">09:00</option>
+                            <option value="10:00">10:00</option>
+                            <option value="11:00">11:00</option>
+                            <option value="12:00">12:00</option>
+                            <option value="14:00">14:00</option>
+                            <option value="15:00">15:00</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex-[2] min-w-[300px]">
+                    <label class="block text-xs font-medium text-muted uppercase tracking-wider mb-2">Recursos da Posição</label>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="resource in allResources">
+                            <button @click="toggleResource(resource)" 
+                                    :class="selectedResources.includes(resource) ? 'border-highlight bg-highlight text-background' : 'border-border bg-card text-muted hover:border-highlight/50'"
+                                    class="px-4 py-2 rounded-full border text-xs font-semibold transition-all flex items-center gap-2 active:scale-95 shadow-sm">
+                                <i :data-lucide="getIconForEquip(resource)" class="w-3.5 h-3.5"></i>
+                                <span x-text="resource"></span>
+                                <i x-show="selectedResources.includes(resource)" data-lucide="x" class="w-3 h-3 ml-1"></i>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button @click="clearFilters()" class="text-sm text-muted hover:text-white transition-colors underline underline-offset-4">Limpar filtros</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats & Toggle View -->
+        <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center gap-4">
+                <h2 class="text-lg font-semibold">Salas Disponíveis <span class="text-muted ml-2 font-normal text-sm" x-text="'(' + filteredRooms.length + ' salas encontradas)'"></span></h2>
+                <div class="h-4 w-[1px] bg-border"></div>
+                <div class="flex items-center gap-2">
+                    <span class="flex items-center gap-1.5 text-xs text-success bg-success/10 px-2 py-1 rounded-full border border-success/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-success"></span> <span x-text="totalAvailablePositions"></span> Posições Livres
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex bg-card p-1 rounded-lg border border-border">
+                <button @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-border text-white' : 'text-muted hover:text-white'" class="p-2 rounded-md transition-all shadow-sm">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                </button>
+                <button @click="viewMode = 'list'" :class="viewMode === 'list' ? 'bg-border text-white' : 'text-muted hover:text-white'" class="p-2 rounded-md transition-all">
+                    <i data-lucide="list" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Skeleton Loading -->
+        <div x-show="isLoading" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+            <template x-for="i in 4">
+                <div class="bg-card border border-border rounded-2xl p-5 space-y-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl skeleton"></div>
+                        <div class="space-y-2 flex-1">
+                            <div class="h-4 w-3/4 skeleton rounded"></div>
+                            <div class="h-3 w-1/2 skeleton rounded"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="h-12 skeleton rounded-xl"></div>
+                        <div class="h-12 skeleton rounded-xl"></div>
+                    </div>
+                    <div class="h-4 w-full skeleton rounded"></div>
+                    <div class="h-10 w-full skeleton rounded-xl"></div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="!isLoading && filteredRooms.length === 0" class="flex flex-col items-center justify-center py-20 bg-card/20 rounded-3xl border border-dashed border-border">
+            <div class="w-20 h-20 rounded-full bg-border/50 flex items-center justify-center mb-6">
+                <i data-lucide="search-x" class="w-10 h-10 text-muted"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">Nenhuma sala encontrada</h3>
+            <p class="text-muted text-center max-w-md">Tente ajustar seus filtros para encontrar posições disponíveis.</p>
+            <button @click="clearFilters()" class="mt-6 px-6 py-2 bg-highlight text-background rounded-xl font-bold hover:bg-highlight/90 transition-all">Limpar todos os filtros</button>
+        </div>
+
+        <!-- Room Grid -->
+        <div x-show="!isLoading && viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+            <template x-for="room in filteredRooms" :key="room.id">
+                <div class="group relative bg-card border border-border rounded-2xl p-5 hover:border-highlight/40 transition-all duration-300 hover:shadow-[0_0_30px_-10px_rgba(0,212,255,0.15)] flex flex-col animate-slide-up">
+                    <!-- Card Top -->
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-border to-card flex items-center justify-center border border-border/50 group-hover:scale-110 transition-transform">
+                                <i :data-lucide="room.icon" class="w-6 h-6 text-highlight"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-white group-hover:text-highlight transition-colors" x-text="room.name"></h3>
+                                <p class="text-xs text-muted flex items-center gap-1">
+                                    <i data-lucide="map-pin" class="w-3 h-3"></i>
+                                    <span x-text="room.location"></span>
+                                </p>
+                            </div>
+                        </div>
+                        <span :class="getRoomStatusClass(room)" class="text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border" x-text="getAvailablePositionsCount(room) + ' LIVRES'"></span>
+                    </div>
+
+                    <!-- Room Info -->
+                    <div class="space-y-4 flex-1">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-background/40 p-2.5 rounded-xl border border-border/50 text-center">
+                                <p class="text-[10px] text-muted uppercase mb-1">Total Posições</p>
+                                <span class="text-sm font-medium" x-text="room.positions.length"></span>
+                            </div>
+                            <div class="bg-background/40 p-2.5 rounded-xl border border-border/50 text-center">
+                                <p class="text-[10px] text-muted uppercase mb-1">Ocupadas</p>
+                                <span class="text-sm font-medium" x-text="room.positions.length - getAvailablePositionsCount(room)"></span>
+                            </div>
+                        </div>
+
+                        <!-- Equipments -->
+                        <div>
+                            <p class="text-[10px] text-muted uppercase mb-2">Recursos na Sala</p>
+                            <div class="flex flex-wrap gap-1.5">
+                                <template x-for="equip in room.equipments">
+                                    <span class="p-1.5 rounded-lg bg-border/40 text-muted hover:text-highlight hover:bg-highlight/10 transition-all cursor-help" :title="equip">
+                                        <i :data-lucide="getIconForEquip(equip)" class="w-3.5 h-3.5"></i>
+                                    </span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Occupancy Bar -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-[10px] text-muted uppercase">Ocupação da Sala</p>
+                                <span class="text-[10px] text-highlight" x-text="Math.round((1 - getAvailablePositionsCount(room)/room.positions.length) * 100) + '% Ocupado'"></span>
+                            </div>
+                            <div class="h-1.5 w-full bg-border rounded-full overflow-hidden flex">
+                                <template x-for="pos in room.positions">
+                                    <div :class="pos.occupied ? 'bg-error/40' : 'bg-success/40'" class="h-full border-r border-background/20" :style="'width: ' + (100/room.positions.length) + '%'"></div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button @click="openModal(room)" class="mt-6 w-full py-2.5 rounded-xl border border-highlight/30 text-highlight text-sm font-semibold hover:bg-highlight hover:text-background transition-all flex items-center justify-center gap-2 group-hover:shadow-lg group-hover:shadow-highlight/20">
+                        Selecionar Posição
+                    </button>
+                </div>
+            </template>
+        </div>
+
+        <!-- List View -->
+        <div x-show="!isLoading && viewMode === 'list'" class="space-y-4">
+            <template x-for="room in filteredRooms" :key="room.id">
+                <div class="bg-card border border-border rounded-2xl p-4 flex items-center justify-between hover:border-highlight/40 transition-all animate-slide-up">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="w-12 h-12 rounded-xl bg-border/50 flex items-center justify-center">
+                            <i :data-lucide="room.icon" class="w-6 h-6 text-highlight"></i>
+                        </div>
+                        <div class="min-w-[200px]">
+                            <h3 class="font-bold text-white" x-text="room.name"></h3>
+                            <p class="text-xs text-muted" x-text="room.location"></p>
+                        </div>
+                        <div class="flex items-center gap-10">
+                            <div class="text-center">
+                                <p class="text-[10px] text-muted uppercase">Livres</p>
+                                <p class="text-sm font-medium" x-text="getAvailablePositionsCount(room) + '/' + room.positions.length"></p>
+                            </div>
+                            <div class="flex gap-2">
+                                <template x-for="equip in room.equipments">
+                                    <i :data-lucide="getIconForEquip(equip)" class="w-4 h-4 text-muted"></i>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-6">
+                        <button @click="openModal(room)" class="px-6 py-2 rounded-xl bg-highlight/10 text-highlight border border-highlight/20 hover:bg-highlight hover:text-background transition-all text-sm font-bold">
+                            Ver Posições
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </main>
+
+    <!-- Reservation Modal -->
+    <div x-show="isModalOpen" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/60 backdrop-blur-sm"
+         x-cloak>
+        
+        <div @click.away="closeModal()" 
+             class="bg-card w-full max-w-2xl rounded-3xl border border-border shadow-2xl overflow-hidden transform transition-all"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+            
+            <!-- Modal Header -->
+            <div class="px-8 py-6 border-b border-border flex justify-between items-center bg-gradient-to-r from-card to-border/20">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-highlight/10 flex items-center justify-center border border-highlight/20">
+                        <i data-lucide="monitor" class="w-5 h-5 text-highlight"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Reserva de Estação</h2>
+                        <p class="text-sm text-muted" x-text="selectedRoom ? selectedRoom.name : 'Selecione uma sala'"></p>
+                    </div>
+                </div>
+                <button @click="closeModal()" class="p-2 hover:bg-border rounded-full transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Steps) -->
+            <div class="p-8">
+                <!-- Stepper -->
+                <div class="flex items-center justify-between mb-10 relative">
+                    <div class="absolute top-1/2 left-0 w-full h-[1px] bg-border -translate-y-1/2 z-0"></div>
+                    
+                    <template x-for="step in (startedFromGlobal ? 6 : 5)">
+                        <div class="relative z-10 flex flex-col items-center gap-2">
+                            <div :class="currentStep >= step ? 'bg-highlight text-background border-highlight' : 'bg-card text-muted border-border'" 
+                                 class="w-8 h-8 rounded-full border-2 flex items-center justify-center font-bold text-sm transition-all duration-500"
+                                 x-text="step"></div>
+                            <span class="text-[9px] uppercase font-bold tracking-widest text-muted" x-text="getStepLabel(step)"></span>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Step 1: Date -->
+                <div x-show="currentStep === 1" class="space-y-6">
+                    <p class="text-sm text-muted">Escolha a data da sua reserva:</p>
+                    <div class="grid grid-cols-7 gap-2">
+                        <template x-for="day in ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']">
+                            <div class="text-center text-[10px] font-bold text-muted uppercase py-2" x-text="day"></div>
+                        </template>
+                        <template x-for="day in calendarDays" :key="day.iso">
+                            <button @click="selectCalendarDay(day)" 
+                                    :class="{
+                                        'bg-highlight text-background border-highlight': selectedDate === day.day,
+                                        'hover:border-highlight/50': !day.disabled,
+                                        'opacity-20 cursor-not-allowed': day.disabled
+                                    }"
+                                    class="h-10 rounded-lg border border-border flex items-center justify-center text-sm transition-all"
+                                    x-text="day.day"
+                                    :disabled="day.disabled"></button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Step 2: Time (Custom Range) -->
+                <div x-show="currentStep === 2" class="space-y-6">
+                    <p class="text-sm text-muted">Defina o intervalo personalizado para sua reserva:</p>
+                    
+                    <div class="grid grid-cols-2 gap-6 bg-background/40 p-6 rounded-2xl border border-border">
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-muted uppercase tracking-widest">Início</label>
+                            <div class="relative group">
+                                <i data-lucide="clock" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-highlight"></i>
+                                <input type="time" x-model="customStartTime" 
+                                       class="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm focus:border-highlight outline-none transition-all [color-scheme:dark]">
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-muted uppercase tracking-widest">Término</label>
+                            <div class="relative group">
+                                <i data-lucide="clock-arrow-up" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-highlight"></i>
+                                <input type="time" x-model="customEndTime" 
+                                       class="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-sm focus:border-highlight outline-none transition-all [color-scheme:dark]">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 p-4 bg-highlight/5 rounded-xl border border-highlight/20">
+                        <i data-lucide="info" class="w-5 h-5 text-highlight"></i>
+                        <p class="text-xs text-muted leading-relaxed">
+                            Você está reservando por <span class="text-white font-bold" x-text="calculateDuration()"></span> em <span class="text-white font-bold" x-text="formatFilterDateLabel()"></span>.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Step 3: Preferences (Equipment) -->
+                <div x-show="currentStep === 3" class="space-y-6">
+                    <p class="text-sm text-muted">Quais recursos sua estação de trabalho deve ter?</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <template x-for="resource in allResources">
+                            <button @click="toggleModalResource(resource)" 
+                                    :class="modalSelectedResources.includes(resource) ? 'border-highlight bg-highlight/10 text-highlight' : 'border-border bg-card text-muted hover:border-highlight/30'"
+                                    class="p-4 rounded-2xl border flex items-center justify-between transition-all active:scale-[0.98]">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-background/50 flex items-center justify-center">
+                                        <i :data-lucide="getIconForEquip(resource)" class="w-4 h-4"></i>
+                                    </div>
+                                    <span class="text-sm font-semibold" x-text="resource"></span>
+                                </div>
+                                <div :class="modalSelectedResources.includes(resource) ? 'bg-highlight border-highlight' : 'border-border'" class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all">
+                                    <i x-show="modalSelectedResources.includes(resource)" data-lucide="check" class="w-3 h-3 text-background"></i>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Step 4: Room Selection (Only if startedFromGlobal) -->
+                <div x-show="startedFromGlobal && currentStep === 4" class="space-y-6">
+                    <p class="text-sm text-muted">Selecione uma sala que atenda às suas necessidades:</p>
+                    <div class="grid grid-cols-1 gap-3 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                        <template x-for="room in getRoomsWithCompatiblePositions()">
+                            <button @click="selectRoomInModal(room)" 
+                                    :class="selectedRoom?.id === room.id ? 'border-highlight bg-highlight/5 shadow-[0_0_15px_rgba(0,212,255,0.1)]' : 'border-border bg-card hover:border-highlight/30'"
+                                    class="p-4 rounded-2xl border flex items-center justify-between transition-all group">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-xl bg-background/50 flex items-center justify-center">
+                                        <i :data-lucide="room.icon" class="w-5 h-5 text-highlight"></i>
+                                    </div>
+                                    <div class="text-left">
+                                        <h4 class="text-sm font-bold text-white" x-text="room.name"></h4>
+                                        <p class="text-[10px] text-muted" x-text="room.location"></p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[10px] font-bold text-highlight bg-highlight/10 px-2 py-1 rounded-md border border-highlight/20" x-text="getCompatiblePositionsCount(room) + ' LIVRES'"></span>
+                                    <p class="text-[8px] text-muted mt-1 uppercase tracking-widest">Compatíveis</p>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Step 5 (or 4): Select Position (Floor Plan + Selection) -->
+                <div x-show="currentStep === (startedFromGlobal ? 5 : 4)" class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm text-muted">Estações disponíveis na <span class="text-white font-bold" x-text="selectedRoom?.name"></span>:</p>
+                        <div class="flex items-center gap-2 text-[10px] text-highlight bg-highlight/10 px-2 py-1 rounded-md border border-highlight/20">
+                            <i data-lucide="filter" class="w-3 h-3"></i>
+                            <span x-text="getFilteredPositions().length + ' estações compatíveis'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Floor Plan Image/Visual (Top) -->
+                    <div class="relative bg-black rounded-2xl border border-border p-4 aspect-[16/9] flex items-center justify-center overflow-hidden">
+                        <div class="w-full h-full opacity-60 pointer-events-none flex items-center justify-center">
+                            <div class="w-full h-full border-2 border-border/30 rounded-lg relative">
+                                <!-- Simulated office elements -->
+                                <div class="absolute top-4 left-4 w-32 h-12 border border-muted/30 rounded-full flex items-center justify-center">
+                                    <span class="text-[8px] text-muted uppercase">Reunião</span>
+                                </div>
+                                <div class="absolute top-20 left-4 grid grid-cols-4 gap-2">
+                                    <template x-for="i in 8">
+                                        <div class="w-6 h-4 border border-muted/20 rounded-sm"></div>
+                                    </template>
+                                </div>
+                                <div class="absolute bottom-4 left-4 grid grid-cols-4 gap-2">
+                                    <template x-for="i in 8">
+                                        <div class="w-6 h-4 border border-muted/20 rounded-sm"></div>
+                                    </template>
+                                </div>
+                                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-4">
+                                    <div class="w-10 h-10 border border-muted/20 rounded-full"></div>
+                                    <div class="w-10 h-10 border border-muted/20 rounded-full"></div>
+                                </div>
+                                <div class="absolute top-4 right-4 w-12 h-48 border border-muted/20 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="absolute inset-0 flex items-center justify-center bg-background/20 backdrop-blur-[1px]">
+                            <span class="text-[10px] text-muted uppercase tracking-widest bg-card/80 px-3 py-1 rounded-full border border-border">Planta de Referência</span>
+                        </div>
+                    </div>
+
+                    <!-- Selection Grid (Bottom) -->
+                    <div class="bg-background/60 rounded-2xl border border-border p-6">
+                        <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                            <template x-for="pos in selectedRoom?.positions">
+                                <button @click="isPositionCompatible(pos) && !pos.occupied ? selectedPosition = pos : null" 
+                                        :class="{
+                                            'bg-highlight text-background border-highlight shadow-[0_0_15px_rgba(0,212,255,0.4)]': selectedPosition?.id === pos.id,
+                                            'bg-error/10 border-error/20 opacity-30 cursor-not-allowed': pos.occupied || !isPositionCompatible(pos),
+                                            'bg-card border-border hover:border-highlight/50': !pos.occupied && isPositionCompatible(pos) && selectedPosition?.id !== pos.id
+                                        }"
+                                        class="aspect-square rounded-lg border flex flex-col items-center justify-center transition-all duration-300 group"
+                                        :disabled="pos.occupied || !isPositionCompatible(pos)">
+                                    <span :class="selectedPosition?.id === pos.id ? 'text-background' : 'text-muted'" class="text-[10px] font-bold" x-text="pos.name"></span>
+                                    <div x-show="!pos.occupied && !isPositionCompatible(pos)" class="mt-1">
+                                        <i data-lucide="alert-circle" class="w-3 h-3 text-error/60"></i>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 6 (or 5): Confirmation -->
+                <div x-show="currentStep === (startedFromGlobal ? 6 : 5)" class="space-y-6">
+                    <div class="bg-background/40 rounded-2xl border border-border p-6 space-y-4">
+                        <div class="flex justify-between border-b border-border/50 pb-4">
+                            <span class="text-muted text-sm">Sala</span>
+                            <span class="font-semibold text-white" x-text="selectedRoom?.name"></span>
+                        </div>
+                        <div class="flex justify-between border-b border-border/50 pb-4">
+                            <span class="text-muted text-sm">Estação</span>
+                            <span class="font-semibold text-highlight" x-text="selectedPosition?.name"></span>
+                        </div>
+                        <div class="flex justify-between border-b border-border/50 pb-4">
+                            <span class="text-muted text-sm">Horário</span>
+                            <span class="font-semibold text-white" x-text="customStartTime + ' até ' + customEndTime"></span>
+                        </div>
+                        <div class="flex justify-between border-b border-border/50 pb-4">
+                            <span class="text-muted text-sm">Preferências</span>
+                            <div class="flex gap-2 flex-wrap justify-end">
+                                <template x-for="pref in modalSelectedResources">
+                                    <span class="text-[10px] bg-highlight/10 text-highlight px-2 py-0.5 rounded border border-highlight/20" x-text="pref"></span>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-muted text-sm">Recursos da Estação</span>
+                            <div class="flex gap-2">
+                                <template x-for="equip in selectedPosition?.equipment">
+                                    <i :data-lucide="getIconForEquip(equip)" class="w-4 h-4 text-muted" :title="equip"></i>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-8 py-6 bg-border/10 flex items-center justify-between border-t border-border">
+                <button @click="prevStep()" 
+                        class="px-6 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-card transition-all">
+                    Voltar
+                </button>
+                <div class="flex items-center gap-3">
+                    <div x-show="isBooking" class="w-5 h-5 border-2 border-highlight border-t-transparent rounded-full animate-spin"></div>
+                    <button @click="nextStep()" 
+                            :disabled="isNextDisabled()"
+                            class="px-8 py-2.5 rounded-xl bg-highlight text-background text-sm font-bold hover:bg-highlight/90 transition-all flex items-center gap-2 disabled:opacity-50">
+                        <span x-text="isLastStep() ? 'Confirmar Reserva' : 'Continuar'"></span>
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Feedback (Toast-like) -->
+    <div x-show="showSuccess" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="translate-y-20 opacity-0"
+         x-transition:enter-end="translate-y-0 opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed bottom-8 right-8 z-[200] bg-success text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4"
+         x-cloak>
+        <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+            <i data-lucide="check" class="w-5 h-5"></i>
+        </div>
+        <div>
+            <p class="font-bold">Reserva confirmada!</p>
+            <p class="text-xs opacity-90" x-text="'Estação ' + selectedPosition?.name + ' reservada com sucesso.'"></p>
+        </div>
+    </div>
+
+    <div x-show="errorMessage" class="fixed top-24 left-1/2 -translate-x-1/2 z-[200] bg-error/90 text-white px-6 py-3 rounded-xl text-sm max-w-md text-center" x-text="errorMessage" x-cloak></div>
+
+    <script>
+        const API_BASE = '/api/v1';
+        const SESSION_KEY = 'officehub.session';
+
+        function minReservationDateStr() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 7);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function roomIconForName(name) {
+            const map = [
+                ['Apolo', 'monitor'], ['Hermes', 'briefcase'], ['Athena', 'users'],
+                ['Zeus', 'crown'], ['Cronos', 'clock'], ['Poseidon', 'mic'],
+            ];
+            const hit = map.find(([k]) => name.includes(k));
+            return hit ? hit[1] : 'building-2';
+        }
+
+        async function apiRequest(path, init) {
+            const response = await fetch(`${API_BASE}${path}`, {
+                ...init,
+                headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+            });
+            if (!response.ok) {
+                let message = `Erro HTTP ${response.status}`;
+                try {
+                    const data = await response.json();
+                    if (data.message) message = data.message;
+                } catch (_) {}
+                throw new Error(message);
+            }
+            if (response.status === 204) return null;
+            return response.json();
+        }
+
+        const DEMO_POSITION_RESOURCES = [
+            'Monitor 4K', 'Cadeira Ergonômica', 'Mouse Vertical', 'Teclado Mecânico', 'Ar-condicionado',
+        ];
+
+        function seededIndex(seed, max) {
+            const next = (seed * 1103515245 + 12345) & 0x7fffffff;
+            return next % max;
+        }
+
+        function randomizeRoomEquipments(roomId) {
+            const pool = [...DEMO_POSITION_RESOURCES];
+            const count = 2 + (roomId % 3);
+            const picked = [];
+            let seed = roomId * 7919;
+            while (picked.length < count && pool.length > 0) {
+                const idx = seededIndex(seed, pool.length);
+                seed += idx + 1;
+                picked.push(pool.splice(idx, 1)[0]);
+            }
+            return picked;
+        }
+
+        function randomizePositionEquipments(roomId, positionKey, roomEquipments) {
+            if (!roomEquipments.length) return [];
+            const pool = [...roomEquipments];
+            const count = Math.max(1, Math.min(pool.length, 1 + (positionKey.length % pool.length)));
+            const picked = [];
+            let seed = roomId * 104729 + positionKey.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+            while (picked.length < count && pool.length > 0) {
+                const idx = seededIndex(seed, pool.length);
+                seed += idx + 7;
+                picked.push(pool.splice(idx, 1)[0]);
+            }
+            return picked;
+        }
+
+        function resolveRoomEquipments(roomId, apiEquipment) {
+            const fromApi = (apiEquipment ?? []).filter(Boolean);
+            const demo = randomizeRoomEquipments(roomId);
+            return [...new Set([...demo, ...fromApi])];
+        }
+
+        function mapApiRoom(room) {
+            const equipments = resolveRoomEquipments(room.id, room.equipment);
+            return {
+                id: room.id,
+                name: room.name,
+                location: room.floor || '—',
+                icon: roomIconForName(room.name),
+                equipments,
+                status: room.status,
+                positions: [],
+            };
+        }
+
+        const EQUIPMENT_ALIASES = {
+            'Monitor 4K': ['Monitor 27', 'PC Workstation'],
+            'Cadeira Ergonômica': ['Mesa ergonômica'],
+            'Mouse Vertical': ['Mesa ergonômica'],
+            'Teclado Mecânico': ['Mesa ergonômica', 'PC Workstation'],
+            'Ar-condicionado': ['Ar-condicionado'],
+        };
+
+        function mapApiPositions(apiPositions, _roomId, roomEquipments) {
+            return apiPositions.map((p) => {
+                const apiEquip = (p.availableEquipment ?? []).filter(Boolean);
+                return {
+                    id: p.code,
+                    name: p.code,
+                    type: p.type || 'standard',
+                    occupied: !p.available || p.blocked,
+                    equipment: [...new Set([...apiEquip, ...roomEquipments])],
+                    apiEquipment: apiEquip,
+                };
+            });
+        }
+
+        function resolveRequestedEquipmentForApi(position, preferences) {
+            const api = position.apiEquipment ?? [];
+            if (!preferences.length) return api;
+            const resolved = [];
+            for (const pref of preferences) {
+                const direct = api.find((e) => e.toLowerCase() === pref.toLowerCase());
+                if (direct) { resolved.push(direct); continue; }
+                const aliases = EQUIPMENT_ALIASES[pref] ?? [];
+                const aliasHit = api.find((e) => aliases.some((a) => a.toLowerCase() === e.toLowerCase()));
+                if (aliasHit) resolved.push(aliasHit);
+            }
+            return [...new Set(resolved)];
+        }
+
+        function roomBookingApp() {
+            const minDate = minReservationDateStr();
+            return {
+                isLoading: true,
+                isModalOpen: false,
+                isBooking: false,
+                startedFromGlobal: false,
+                currentStep: 1,
+                viewMode: 'grid',
+                searchQuery: '',
+                filterDate: minDate,
+                filterStartTime: '09:00',
+                filterEndTime: '12:00',
+                selectedResources: [],
+                allResources: [],
+                selectedRoom: null,
+                selectedPosition: null,
+                selectedDate: parseInt(minDate.split('-')[2], 10),
+                customStartTime: '09:00',
+                customEndTime: '12:00',
+                modalSelectedResources: [],
+                showSuccess: false,
+                errorMessage: null,
+                sessionUser: null,
+                returnToUrl: '/',
+                rooms: [],
+
+                init() {
+                    const params = new URLSearchParams(window.location.search);
+                    const returnTo = params.get('returnTo');
+                    if (returnTo && returnTo.startsWith('/')) {
+                        this.returnToUrl = returnTo;
+                    }
+                    try {
+                        const raw = localStorage.getItem(SESSION_KEY);
+                        if (!raw) {
+                            window.location.href = '/?returnTo=' + encodeURIComponent('/reserva-posicoes.html');
+                            return;
+                        }
+                        this.sessionUser = JSON.parse(raw);
+                    } catch (_) {
+                        window.location.href = '/?returnTo=' + encodeURIComponent('/reserva-posicoes.html');
+                        return;
+                    }
+                    void this.loadRooms();
+                },
+
+                async loadRooms() {
+                    this.isLoading = true;
+                    this.errorMessage = null;
+                    try {
+                        const apiRooms = await apiRequest('/rooms');
+                        const mapped = apiRooms.map(mapApiRoom);
+                        await Promise.all(mapped.map(async (room) => {
+                            const params = new URLSearchParams({
+                                date: this.filterDate,
+                                start: this.filterStartTime,
+                                end: this.filterEndTime,
+                            });
+                            const positions = await apiRequest(
+                                `/rooms/${room.id}/positions?${params}`,
+                            );
+                            room.positions = mapApiPositions(positions, room.id, room.equipments);
+                        }));
+                        this.rooms = mapped;
+                        this.allResources = [...new Set(mapped.flatMap((r) => r.equipments))].sort();
+                    } catch (err) {
+                        this.errorMessage = err.message || 'Falha ao carregar salas.';
+                        this.rooms = [];
+                    } finally {
+                        this.isLoading = false;
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                },
+
+                getStepLabel(step) {
+                    const labels = {
+                        1: 'Data',
+                        2: 'Horário',
+                        3: 'Preferências',
+                        4: 'Sala',
+                        5: 'Posição',
+                        6: 'Confirmação'
+                    };
+                    if (!this.startedFromGlobal) {
+                        const labelsNoGlobal = { 1: 'Data', 2: 'Horário', 3: 'Preferências', 4: 'Posição', 5: 'Confirmação' };
+                        return labelsNoGlobal[step];
+                    }
+                    return labels[step];
+                },
+
+                toggleModalResource(resource) {
+                    if (this.modalSelectedResources.includes(resource)) {
+                        this.modalSelectedResources = this.modalSelectedResources.filter(r => r !== resource);
+                    } else {
+                        this.modalSelectedResources.push(resource);
+                    }
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                isPositionCompatible(pos) {
+                    if (this.modalSelectedResources.length === 0) return true;
+                    const roomEquip = this.selectedRoom?.equipments ?? [];
+                    return this.modalSelectedResources.every((res) => roomEquip.includes(res));
+                },
+
+                getCompatiblePositionsCount(room) {
+                    if (this.modalSelectedResources.length === 0) {
+                        return room.positions.filter((pos) => !pos.occupied).length;
+                    }
+                    const ok = this.modalSelectedResources.every((res) => room.equipments.includes(res));
+                    if (!ok) return 0;
+                    return room.positions.filter((pos) => !pos.occupied).length;
+                },
+
+                getRoomsWithCompatiblePositions() {
+                    return this.rooms.filter(room => this.getCompatiblePositionsCount(room) > 0);
+                },
+
+                getFilteredPositions() {
+                    if (!this.selectedRoom) return [];
+                    return this.selectedRoom.positions.filter(pos => !pos.occupied && this.isPositionCompatible(pos));
+                },
+
+                get calendarDays() {
+                    const [y, m] = this.filterDate.split('-').map(Number);
+                    if (!y || !m) return [];
+                    const daysInMonth = new Date(y, m, 0).getDate();
+                    const min = this.minReservationDate;
+                    return Array.from({ length: daysInMonth }, (_, i) => {
+                        const day = i + 1;
+                        const iso = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        return { day, iso, disabled: iso < min };
+                    });
+                },
+
+                selectCalendarDay(day) {
+                    if (day.disabled) return;
+                    this.selectedDate = day.day;
+                    this.filterDate = day.iso;
+                    this.errorMessage = null;
+                },
+
+                formatFilterDateLabel() {
+                    const [y, m, d] = this.filterDate.split('-').map(Number);
+                    if (!y || !m || !d) return this.filterDate;
+                    const month = new Date(y, m - 1, d).toLocaleString('pt-BR', { month: 'long' });
+                    return `${d} de ${month}, ${y}`;
+                },
+
+                calculateDuration() {
+                    if (!this.customStartTime || !this.customEndTime) return '0min';
+                    const start = this.customStartTime.split(':');
+                    const end = this.customEndTime.split(':');
+                    const startDate = new Date(0, 0, 0, start[0], start[1]);
+                    const endDate = new Date(0, 0, 0, end[0], end[1]);
+                    let diff = endDate.getTime() - startDate.getTime();
+                    if (diff < 0) return 'Horário inválido';
+                    
+                    const hours = Math.floor(diff / 1000 / 60 / 60);
+                    diff -= hours * 1000 * 60 * 60;
+                    const minutes = Math.floor(diff / 1000 / 60);
+                    
+                    return (hours > 0 ? hours + 'h ' : '') + minutes + 'min';
+                },
+
+                get filteredRooms() {
+                    return this.rooms.filter(room => {
+                        const q = this.searchQuery.toLowerCase();
+                        const matchesSearch = room.name.toLowerCase().includes(q) ||
+                                              room.location.toLowerCase().includes(q);
+                        const matchesResources = this.selectedResources.every(res => room.equipments.includes(res));
+                        return matchesSearch && matchesResources;
+                    });
+                },
+
+                get minReservationDate() {
+                    return minReservationDateStr();
+                },
+
+                get totalAvailablePositions() {
+                    return this.filteredRooms.reduce((acc, room) => acc + this.getAvailablePositionsCount(room), 0);
+                },
+
+                getAvailablePositionsCount(room) {
+                    return room.positions.filter(p => !p.occupied).length;
+                },
+
+                getRoomStatusClass(room) {
+                    const count = this.getAvailablePositionsCount(room);
+                    if (count === 0) return 'bg-error/10 text-error border-error/20';
+                    if (count < 3) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+                    return 'bg-success/10 text-success border-success/20';
+                },
+
+                toggleResource(resource) {
+                    if (this.selectedResources.includes(resource)) {
+                        this.selectedResources = this.selectedResources.filter(r => r !== resource);
+                    } else {
+                        this.selectedResources.push(resource);
+                    }
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                clearFilters() {
+                    this.searchQuery = '';
+                    this.selectedResources = [];
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                getIconForEquip(equip) {
+                    const icons = {
+                        'Monitor 4K': 'monitor',
+                        'Cadeira Ergonômica': 'armchair',
+                        'Mouse Vertical': 'mouse',
+                        'Teclado Mecânico': 'keyboard',
+                        'Ar-condicionado': 'wind'
+                    };
+                    return icons[equip] || 'check-circle';
+                },
+
+                async openModal(room = null) {
+                    this.startedFromGlobal = !room;
+                    this.selectedRoom = room;
+                    this.selectedPosition = null;
+                    this.modalSelectedResources = [...this.selectedResources];
+                    this.customStartTime = this.filterStartTime;
+                    this.customEndTime = this.filterEndTime;
+                    const day = parseInt(this.filterDate.split('-')[2], 10);
+                    this.selectedDate = Number.isNaN(day) ? null : day;
+                    if (room) {
+                        await this.refreshRoomPositions(room);
+                        this.selectedRoom = { ...room, positions: [...room.positions] };
+                    }
+                    this.isModalOpen = true;
+                    this.currentStep = 1;
+                    this.$nextTick(() => lucide.createIcons());
+                },
+
+                async refreshRoomPositions(room) {
+                    const params = new URLSearchParams({
+                        date: this.filterDate,
+                        start: this.customStartTime,
+                        end: this.customEndTime,
+                    });
+                    const positions = await apiRequest(
+                        `/rooms/${room.id}/positions?${params}`,
+                    );
+                    room.positions = mapApiPositions(positions, room.id, room.equipments);
+                },
+
+                async selectRoomInModal(room) {
+                    const copy = { ...room, positions: [] };
+                    await this.refreshRoomPositions(copy);
+                    this.selectedRoom = copy;
+                    this.selectedPosition = null;
+                    this.nextStep();
+                },
+
+                closeModal() {
+                    this.isModalOpen = false;
+                },
+
+                nextStep() {
+                    const maxSteps = this.startedFromGlobal ? 6 : 5;
+                    if (this.currentStep === 1 && this.filterDate < this.minReservationDate) {
+                        this.errorMessage = 'A data da reserva deve ser pelo menos 7 dias à frente.';
+                        return;
+                    }
+                    if (this.currentStep < maxSteps) {
+                        this.currentStep++;
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.confirmBooking();
+                    }
+                },
+
+                prevStep() {
+                    if (this.currentStep > 1) {
+                        this.currentStep--;
+                        this.$nextTick(() => lucide.createIcons());
+                    } else {
+                        this.closeModal();
+                    }
+                },
+
+                isNextDisabled() {
+                    if (this.isBooking) return true;
+                    // In position selection step
+                    if (this.currentStep === (this.startedFromGlobal ? 5 : 4)) {
+                        return !this.selectedPosition;
+                    }
+                    // In room selection step
+                    if (this.startedFromGlobal && this.currentStep === 4) {
+                        return !this.selectedRoom;
+                    }
+                    return false;
+                },
+
+                isLastStep() {
+                    return this.currentStep === (this.startedFromGlobal ? 6 : 5);
+                },
+
+                async confirmBooking() {
+                    if (!this.selectedRoom || !this.selectedPosition || !this.sessionUser) return;
+                    if (this.filterDate < this.minReservationDate) {
+                        this.errorMessage = 'A data da reserva deve ser pelo menos 7 dias à frente.';
+                        return;
+                    }
+                    this.isBooking = true;
+                    this.errorMessage = null;
+                    try {
+                        await apiRequest('/reservations', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                roomId: this.selectedRoom.id,
+                                requesterName: this.sessionUser.name,
+                                user: this.sessionUser.name,
+                                requesterRole: this.sessionUser.role,
+                                seatCode: this.selectedPosition.name,
+                                seatType: this.selectedPosition.type,
+                                requestedEquipment: resolveRequestedEquipmentForApi(
+                                    this.selectedPosition,
+                                    this.modalSelectedResources,
+                                ),
+                                date: this.filterDate,
+                                start: this.customStartTime,
+                                end: this.customEndTime,
+                            }),
+                        });
+                        this.showSuccess = true;
+                        await this.loadRooms();
+                        setTimeout(() => {
+                            this.showSuccess = false;
+                            this.closeModal();
+                        }, 2500);
+                    } catch (err) {
+                        this.errorMessage = err.message || 'Falha ao confirmar reserva.';
+                    } finally {
+                        this.isBooking = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,43 +1,45 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
-import { MOCK_RESERVATIONS } from "../data/mock";
-import type { Reservation } from "../types/officehub";
+import type { Reservation, SessionUser } from "../types/officehub";
+import { fetchReservations } from "../services/reservationsService";
 
-const EXTRA: Reservation[] = [
-  {
-    id: 10,
-    room: "Sala Cronos",
-    user: "Pedro Alves",
-    date: "2025-05-28",
-    start: "13:00",
-    end: "15:00",
-    status: "confirmed",
-  },
-  {
-    id: 11,
-    room: "Sala Zeus",
-    user: "Julia Costa",
-    date: "2025-05-27",
-    start: "09:00",
-    end: "10:30",
-    status: "confirmed",
-  },
-  {
-    id: 12,
-    room: "Sala Apolo",
-    user: "Carlos Lima",
-    date: "2025-05-25",
-    start: "11:00",
-    end: "12:00",
-    status: "cancelled",
-  },
-];
+interface HistoryPageProps {
+  user: SessionUser;
+}
 
-export function HistoryPage() {
+export function HistoryPage({ user }: HistoryPageProps) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const all = [...MOCK_RESERVATIONS, ...EXTRA];
+  async function loadHistory() {
+    setLoading(true);
+    try {
+      const data = await fetchReservations(user);
+      setReservations(data);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Falha ao carregar o histórico do backend.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadHistory();
+  }, []);
+
+  const filtered = reservations.filter((r) => {
+    if (dateFrom && r.date < dateFrom) return false;
+    if (dateTo && r.date > dateTo) return false;
+    return true;
+  });
 
   return (
     <div>
@@ -54,6 +56,22 @@ export function HistoryPage() {
       <div style={{ fontSize: 13, color: "var(--text3)", marginBottom: 24 }}>
         RF14 — Registros passados de ocupação
       </div>
+
+      {error ? (
+        <div
+          style={{
+            marginBottom: 12,
+            fontSize: 12,
+            color: "var(--red)",
+            background: "rgba(255,77,109,0.12)",
+            border: "1px solid rgba(255,77,109,0.25)",
+            borderRadius: 8,
+            padding: "8px 12px",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
 
       <div className="card mb-24">
         <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 14 }}>
@@ -87,8 +105,13 @@ export function HistoryPage() {
             />
           </div>
           <div style={{ alignSelf: "flex-end" }}>
-            <button type="button" className="btn btn-primary">
-              Buscar
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void loadHistory()}
+              disabled={loading}
+            >
+              {loading ? "Buscando..." : "Buscar"}
             </button>
           </div>
         </div>
@@ -108,7 +131,17 @@ export function HistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {[...all]
+              {loading && reservations.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    <div className="empty-state">
+                      <div className="empty-icon">⏳</div>
+                      <div className="empty-text">Carregando histórico...</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
+              {filtered
                 .sort((a, b) => b.date.localeCompare(a.date))
                 .map((r) => (
                   <tr key={r.id}>
@@ -135,6 +168,18 @@ export function HistoryPage() {
                     </td>
                   </tr>
                 ))}
+              {!loading && filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    <div className="empty-state">
+                      <div className="empty-icon">📅</div>
+                      <div className="empty-text">
+                        Nenhum registro encontrado
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -142,3 +187,4 @@ export function HistoryPage() {
     </div>
   );
 }
+

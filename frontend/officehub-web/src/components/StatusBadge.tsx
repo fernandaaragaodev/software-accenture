@@ -5,6 +5,7 @@ const MAP: Record<
   { label: string; cls: string }
 > = {
   available: { label: "Disponível", cls: "badge-green" },
+  unavailable: { label: "Indisponível", cls: "badge-red" },
   occupied: { label: "Ocupada", cls: "badge-red" },
   reserved: { label: "Reservada", cls: "badge-amber" },
   confirmed: { label: "Confirmada", cls: "badge-green" },

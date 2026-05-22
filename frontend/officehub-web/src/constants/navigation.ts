@@ -14,6 +14,12 @@ export const NAV: NavItem[] = [
     roles: ["admin", "manager", "employee"],
   },
   {
+    id: "teams",
+    label: "Equipes",
+    icon: "👥",
+    roles: ["admin", "manager"],
+  },
+  {
     id: "reservations",
     label: "Reservas",
     icon: "📅",
@@ -49,7 +55,8 @@ export const NAV: NavItem[] = [
 
 export const PAGE_TITLES: Record<PageId, string> = {
   dashboard: "Painel geral",
-  rooms: "Salas e Escritórios",
+  rooms: "Reserva de Posições",
+  teams: "Minhas Equipes",
   reservations: "Reservas",
   history: "Histórico",
   notifications: "Notificações",
@@ -63,4 +70,16 @@ export function filterNavForRole(
 ): NavItem[] {
   if (!role) return items;
   return items.filter((n) => n.roles.includes(role));
+}
+
+const ADMIN_ONLY_NAV_IDS = new Set<PageId>(["users", "api"]);
+
+export function splitNavForSidebar(items: NavItem[]): {
+  mainNav: NavItem[];
+  adminNav: NavItem[];
+} {
+  return {
+    mainNav: items.filter((n) => !ADMIN_ONLY_NAV_IDS.has(n.id)),
+    adminNav: items.filter((n) => ADMIN_ONLY_NAV_IDS.has(n.id)),
+  };
 }
