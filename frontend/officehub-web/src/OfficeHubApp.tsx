@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { NAV, PAGE_TITLES, filterNavForRole } from "./constants/navigation";
+import {
+  NAV,
+  PAGE_TITLES,
+  filterNavForRole,
+  splitNavForSidebar,
+} from "./constants/navigation";
 import { AppShell } from "./components/layout/AppShell";
 import {
   clearSession,
@@ -14,6 +19,7 @@ import { ReservationsPage } from "./pages/ReservationsPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { UsersPage } from "./pages/UsersPage";
+import { TeamsPage } from "./pages/TeamsPage";
 import { ApiPage } from "./pages/ApiPage";
 import { fetchNotifications } from "./services/notificationsService";
 
@@ -42,8 +48,10 @@ export default function OfficeHubApp() {
       };
     });
   }, [user?.role, unreadNotifs]);
-  const mainNav = visibleNav.slice(0, 5);
-  const adminNav = visibleNav.slice(5);
+  const { mainNav, adminNav } = useMemo(
+    () => splitNavForSidebar(visibleNav),
+    [visibleNav],
+  );
 
   async function refreshUnreadNotifications() {
     if (!user) {
@@ -83,6 +91,13 @@ export default function OfficeHubApp() {
         return <DashboardPage user={user} />;
       case "rooms":
         return <RoomsPage user={user} />;
+      case "teams":
+        return (
+          <TeamsPage
+            user={user}
+            onReserveForTeam={() => setPage("rooms")}
+          />
+        );
       case "reservations":
         return <ReservationsPage user={user} />;
       case "history":

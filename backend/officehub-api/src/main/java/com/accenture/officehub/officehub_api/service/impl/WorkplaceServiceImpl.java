@@ -1,11 +1,14 @@
 package com.accenture.officehub.officehub_api.service.impl;
 
 import com.accenture.officehub.officehub_api.dto.ColleagueContextDto;
+import com.accenture.officehub.officehub_api.dto.ManagerTeamResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomSuggestionResponseDto;
+import com.accenture.officehub.officehub_api.dto.TeamMemberResponseDto;
 import com.accenture.officehub.officehub_api.dto.WorkplaceContextResponseDto;
 import com.accenture.officehub.officehub_api.enums.ProfessionalProfile;
 import com.accenture.officehub.officehub_api.enums.ReservationStatus;
 import com.accenture.officehub.officehub_api.exception.BadRequestException;
+import com.accenture.officehub.officehub_api.exception.ForbiddenException;
 import com.accenture.officehub.officehub_api.model.Employee;
 import com.accenture.officehub.officehub_api.model.Reservation;
 import com.accenture.officehub.officehub_api.model.Room;
@@ -92,6 +95,62 @@ public class WorkplaceServiceImpl implements WorkplaceService {
                 e.getProfessionalProfile().name(),
                 profileLabel(e.getProfessionalProfile()),
                 colleagues
+        );
+    }
+
+    @Override
+    public List<ManagerTeamResponseDto> listTeamsForManager(String requesterName, String requesterRole) {
+        if (requesterName == null || requesterName.isBlank()) {
+            throw new BadRequestException("requesterName e obrigatorio.");
+        }
+        if (requesterRole == null || requesterRole.isBlank()) {
+            throw new BadRequestException("requesterRole e obrigatorio.");
+        }
+        String role = requesterRole.trim().toLowerCase(Locale.ROOT);
+        if (role.equals("employee")) {
+            throw new ForbiddenException("Listagem de equipes permitida apenas para gestor ou admin.");
+        }
+        if (!role.equals("manager") && !role.equals("admin")) {
+            throw new BadRequestException("requesterRole invalido. Use manager ou admin.");
+        }
+
+        String requester = requesterName.trim();
+
+        if (role.equals("admin")) {
+            return teamRepository.findAll().stream()
+                    .map(team -> toManagerTeamDto(team, null))
+                    .toList();
+        }
+
+        Employee manager = employeeRepository.findByDisplayNameIgnoreCase(requester)
+                .orElseThrow(() -> new ForbiddenException(
+                        "Gestor nao cadastrado no diretorio de colaboradores."
+                ));
+        if (manager.getTeamId() == null) {
+            return List.of();
+        }
+        return teamRepository.findById(manager.getTeamId())
+                .map(team -> List.of(toManagerTeamDto(team, manager.getId())))
+                .orElse(List.of());
+    }
+
+    private ManagerTeamResponseDto toManagerTeamDto(Team team, Long excludeEmployeeId) {
+        List<TeamMemberResponseDto> members = employeeRepository.findByTeamId(team.getId()).stream()
+                .filter(e -> excludeEmployeeId == null || !e.getId().equals(excludeEmployeeId))
+                .sorted(Comparator.comparing(Employee::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+                .map(e -> new TeamMemberResponseDto(
+                        e.getId(),
+                        e.getDisplayName(),
+                        e.getProfessionalProfile().name(),
+                        profileLabel(e.getProfessionalProfile()),
+                        e.isHidePresenceFromTeam()
+                ))
+                .toList();
+        return new ManagerTeamResponseDto(
+                team.getId(),
+                team.getName(),
+                team.getPreferredFloor(),
+                members
         );
     }
 

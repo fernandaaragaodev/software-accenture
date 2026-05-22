@@ -36,6 +36,31 @@ export async function fetchWorkplaceContext(
   );
 }
 
+export interface TeamMember {
+  id: number;
+  displayName: string;
+  professionalProfile: string;
+  profileLabel: string;
+  hidePresenceFromTeam: boolean;
+}
+
+export interface ManagerTeam {
+  id: number;
+  name: string;
+  preferredFloor: string;
+  members: TeamMember[];
+}
+
+export async function fetchManagerTeams(
+  requesterName: string,
+  requesterRole: string,
+): Promise<ManagerTeam[]> {
+  const params = new URLSearchParams({ requesterName, requesterRole });
+  return apiRequest<ManagerTeam[]>(
+    `/workspace/manager-teams?${params.toString()}`,
+  );
+}
+
 export async function fetchRoomSuggestions(params: {
   userName: string;
   date: string;

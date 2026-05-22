@@ -1,5 +1,6 @@
 package com.accenture.officehub.officehub_api.controller;
 
+import com.accenture.officehub.officehub_api.dto.ManagerTeamResponseDto;
 import com.accenture.officehub.officehub_api.dto.RoomSuggestionResponseDto;
 import com.accenture.officehub.officehub_api.dto.WorkplaceContextResponseDto;
 import com.accenture.officehub.officehub_api.service.WorkplaceService;
@@ -26,6 +27,14 @@ public class WorkspaceController {
             @RequestParam("userName") String userName
     ) {
         return ResponseEntity.ok(workplaceService.getContextForUser(userName));
+    }
+
+    @GetMapping("/manager-teams")
+    public ResponseEntity<List<ManagerTeamResponseDto>> listManagerTeams(
+            @RequestParam("requesterName") String requesterName,
+            @RequestParam("requesterRole") String requesterRole
+    ) {
+        return ResponseEntity.ok(workplaceService.listTeamsForManager(requesterName, requesterRole));
     }
 
     @GetMapping("/room-suggestions")

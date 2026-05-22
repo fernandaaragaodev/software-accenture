@@ -13,6 +13,11 @@ const ENDPOINTS: [HttpMethod, string, string][] = [
     "/api/v1/workspace/room-suggestions?userName=&date=YYYY-MM-DD&start=HH:mm&end=HH:mm&limit=5",
     "Sugestão de salas (score: disponibilidade no intervalo, andar da equipe, perfil, proximidade a colegas)",
   ],
+  [
+    "GET",
+    "/api/v1/workspace/manager-teams?requesterName=&requesterRole=manager",
+    "Equipes e membros para reserva em lote (gestor: sua squad; admin: todas)",
+  ],
   ["GET", "/api/v1/rooms", "Listar salas"],
   ["GET", "/api/v1/rooms/:id/status", "Status da sala"],
   ["GET", "/api/v1/rooms/:id/positions?date=YYYY-MM-DD&start=HH:mm&end=HH:mm", "Posições e disponibilidade no intervalo"],

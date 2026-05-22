@@ -1128,3 +1128,225 @@
     transform: translateY(0);
   }
 }
+
+.rp-batch-team {
+  margin-bottom: 20px;
+}
+
+.rp-batch-team-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #60a5fa;
+  margin: 0 0 10px;
+}
+
+.rp-batch-muted {
+  font-size: 13px;
+  color: var(--rp-muted);
+  margin: 0;
+}
+
+.rp-batch-team-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rp-batch-team-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--rp-border);
+  background: var(--rp-card);
+  color: var(--rp-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rp-batch-team-pill--active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+}
+
+.rp-batch-members {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.rp-batch-members-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.rp-batch-link {
+  border: none;
+  background: none;
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.rp-batch-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.rp-batch-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--rp-border);
+  background: rgba(6, 11, 22, 0.5);
+  cursor: pointer;
+}
+
+.rp-batch-member--on {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.rp-batch-member input {
+  accent-color: #3b82f6;
+}
+
+.rp-batch-member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--rp-card);
+  border: 1px solid var(--rp-border);
+  font-size: 10px;
+  font-weight: 700;
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rp-batch-member-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rp-batch-member-text strong {
+  font-size: 11px;
+  color: #fff;
+}
+
+.rp-batch-member-text span {
+  font-size: 9px;
+  color: var(--rp-muted);
+}
+
+.rp-batch-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--rp-warn);
+}
+
+.rp-batch-assign-bar {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.rp-batch-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rp-batch-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--rp-border);
+  background: var(--rp-card);
+  color: var(--rp-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rp-batch-chip--active {
+  border-color: #3b82f6;
+  color: #93c5fd;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+
+.rp-batch-chip--done {
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.rp-seat--batch-current {
+  background: #3b82f6 !important;
+  color: #fff !important;
+  border-color: #60a5fa !important;
+}
+
+.rp-seat--batch-other {
+  background: rgba(59, 130, 246, 0.35) !important;
+  color: #dbeafe !important;
+  border-color: #3b82f6 !important;
+}
+
+.rp-seat-batch-tag {
+  display: block;
+  font-size: 8px;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.rp-summary-row--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.rp-batch-summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  font-size: 12px;
+}
+
+.rp-batch-summary-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rp-border);
+}
+
+.rp-batch-summary-list li:last-child {
+  border-bottom: none;
+}
+
+.rp-batch-summary-list strong {
+  color: #fff;
+}
+
+.rp-batch-summary-list span {
+  color: var(--rp-highlight);
+}

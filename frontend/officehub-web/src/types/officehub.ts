@@ -88,6 +88,7 @@ export interface NotificationItem {
 export type PageId =
   | "dashboard"
   | "rooms"
+  | "teams"
   | "reservations"
   | "history"
   | "notifications"

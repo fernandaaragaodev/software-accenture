@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionUser } from "../../types/officehub";
-import { createReservation } from "../../services/reservationsService";
+import {
+  createReservation,
+  createReservationsBatch,
+} from "../../services/reservationsService";
+import {
+  fetchManagerTeams,
+  type ManagerTeam,
+} from "../../services/workplaceService";
+import { consumeOpenBatchBookingFlag } from "../../pages/TeamsPage";
+import {
+  effectiveBatchMembers,
+  toggleAllBatchMembers,
+  toggleBatchMemberSelection,
+  toggleBatchPositionAssignment,
+  type BatchPositionAssignment,
+  type BatchTeamMember,
+} from "./managerBatchBooking";
 import {
   fetchRoomPositions,
   fetchRoomPositionsOverview,
@@ -121,6 +137,23 @@ export function RoomsPremiumBooking({
   const [resourcesFilterOpen, setResourcesFilterOpen] = useState(false);
   const resourcesFilterRef = useRef<HTMLDivElement>(null);
 
+  const isBatchBooking = user.role === "manager";
+  const [managerTeams, setManagerTeams] = useState<ManagerTeam[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [teamMembers, setTeamMembers] = useState<BatchTeamMember[]>([]);
+  const [batchAssignments, setBatchAssignments] = useState<
+    BatchPositionAssignment[]
+  >([]);
+  const [currentMemberIndex, setCurrentMemberIndex] = useState(0);
+  const [batchSuccessCount, setBatchSuccessCount] = useState(0);
+
+  const effectiveMembers = useMemo(
+    () => effectiveBatchMembers(teamMembers),
+    [teamMembers],
+  );
+  const teamSize = effectiveMembers.length;
+
   const allResources = useMemo(
     () => [...new Set(rooms.flatMap((r) => r.equipments))].sort(),
     [rooms],
@@ -171,6 +204,23 @@ export function RoomsPremiumBooking({
   useEffect(() => {
     void loadRooms();
   }, [filterDate, filterStartTime, filterEndTime, loadRooms]);
+
+  const loadManagerTeams = useCallback(async () => {
+    if (!isBatchBooking) return;
+    setTeamsLoading(true);
+    try {
+      const teams = await fetchManagerTeams(user.name, user.role);
+      setManagerTeams(teams);
+    } catch {
+      setManagerTeams([]);
+    } finally {
+      setTeamsLoading(false);
+    }
+  }, [isBatchBooking, user.name, user.role]);
+
+  useEffect(() => {
+    void loadManagerTeams();
+  }, [loadManagerTeams]);
 
   useEffect(() => {
     if (!resourcesFilterOpen) return;
@@ -327,6 +377,30 @@ export function RoomsPremiumBooking({
     return copy;
   }
 
+  function resetBatchState() {
+    setSelectedTeamId(null);
+    setTeamMembers([]);
+    setBatchAssignments([]);
+    setCurrentMemberIndex(0);
+    setBatchSuccessCount(0);
+  }
+
+  function selectTeamForBooking(teamId: number) {
+    const team = managerTeams.find((t) => t.id === teamId);
+    if (!team) return;
+    setSelectedTeamId(teamId);
+    setTeamMembers(
+      team.members.map((m) => ({
+        id: m.id,
+        name: m.displayName,
+        role: m.profileLabel,
+        selected: true,
+      })),
+    );
+    setBatchAssignments([]);
+    setCurrentMemberIndex(0);
+  }
+
   async function openModal(room: BookingRoom | null = null) {
     if (room && isRoomDeactivated(room)) return;
     if (!room && bookableRooms.length === 0) return;
@@ -339,6 +413,10 @@ export function RoomsPremiumBooking({
     const day = parseInt(clampedDate.split("-")[2] ?? "", 10);
     setSelectedCalendarDay(Number.isNaN(day) ? null : day);
     setSelectedPosition(null);
+    resetBatchState();
+    if (isBatchBooking && managerTeams.length === 1) {
+      selectTeamForBooking(managerTeams[0].id);
+    }
     setCurrentStep(1);
     if (room) {
       await refreshSelectedRoomPositions(room);
@@ -347,6 +425,13 @@ export function RoomsPremiumBooking({
     }
     setIsModalOpen(true);
   }
+
+  useEffect(() => {
+    if (isLoading || !consumeOpenBatchBookingFlag()) return;
+    if (bookableRooms.length === 0) return;
+    void openModal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abrir modal uma vez após salas carregarem
+  }, [isLoading, bookableRooms.length]);
 
   async function selectRoomInModal(room: BookingRoom) {
     await refreshSelectedRoomPositions(room);
@@ -360,9 +445,59 @@ export function RoomsPremiumBooking({
     setSelectedPosition(null);
     setStartedFromGlobal(false);
     setModalSelectedResources([]);
+    resetBatchState();
+  }
+
+  async function confirmBatchBooking() {
+    if (!selectedRoom || batchAssignments.length < teamSize || teamSize < 2) {
+      setError("Selecione a equipe, pelo menos 2 membros e uma estação para cada um.");
+      return;
+    }
+    if (!isReservationDateAllowed(filterDate)) {
+      setError("A data da reserva deve ser pelo menos 7 dias à frente.");
+      return;
+    }
+    setIsBooking(true);
+    setError(null);
+    try {
+      const payloads = batchAssignments.map((a) => ({
+        roomId: selectedRoom.id,
+        requesterName: user.name,
+        user: a.assignedTo,
+        requesterRole: user.role,
+        seatCode: a.position.name,
+        seatType: a.position.type,
+        requestedEquipment: resolveRequestedEquipmentForApi(
+          a.position,
+          modalSelectedResources,
+        ),
+        date: filterDate,
+        start: customStartTime,
+        end: customEndTime,
+      }));
+      await createReservationsBatch(payloads);
+      setBatchSuccessCount(teamSize);
+      setShowSuccess(true);
+      await loadRooms();
+      window.setTimeout(() => {
+        setShowSuccess(false);
+        setBatchSuccessCount(0);
+        closeModal();
+      }, 2500);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Falha ao confirmar reserva em lote.",
+      );
+    } finally {
+      setIsBooking(false);
+    }
   }
 
   async function confirmBooking() {
+    if (isBatchBooking && teamSize >= 2) {
+      await confirmBatchBooking();
+      return;
+    }
     if (!selectedRoom || !selectedPosition) return;
     if (isRoomDeactivated(selectedRoom)) {
       setError("Esta sala está desativada e não aceita reservas.");
@@ -427,11 +562,41 @@ export function RoomsPremiumBooking({
   function isNextDisabled(): boolean {
     if (isBooking) return true;
     if (currentStep === 1) {
-      return !isReservationDateAllowed(filterDate) || selectedCalendarDay === null;
+      const dateOk =
+        isReservationDateAllowed(filterDate) && selectedCalendarDay !== null;
+      if (isBatchBooking) {
+        return !dateOk || !selectedTeamId || teamSize < 2;
+      }
+      return !dateOk;
     }
-    if (currentStep === positionStep) return !selectedPosition;
+    if (currentStep === positionStep) {
+      if (isBatchBooking) {
+        return batchAssignments.length < teamSize;
+      }
+      return !selectedPosition;
+    }
     if (startedFromGlobal && currentStep === roomPickStep) return !selectedRoom;
     return false;
+  }
+
+  function handleBatchPositionClick(pos: BookingPosition) {
+    const compatible = selectedRoom
+      ? isPositionCompatibleWithPreferences(
+          pos,
+          modalSelectedResources,
+          selectedRoom.equipments,
+        )
+      : false;
+    if (!isPositionSelectable(pos) || !compatible) return;
+    const { assignments, currentMemberIndex: nextIdx } =
+      toggleBatchPositionAssignment(
+        pos,
+        batchAssignments,
+        currentMemberIndex,
+        effectiveMembers,
+      );
+    setBatchAssignments(assignments);
+    setCurrentMemberIndex(nextIdx);
   }
 
   const calendarDays = useMemo(() => {
@@ -785,6 +950,86 @@ export function RoomsPremiumBooking({
                 })}
               </div>
 
+              {currentStep === 1 && isBatchBooking ? (
+                <div className="rp-batch-team">
+                  <p className="rp-batch-team-label">Selecione uma equipe</p>
+                  {teamsLoading ? (
+                    <p className="rp-batch-muted">Carregando equipes…</p>
+                  ) : managerTeams.length === 0 ? (
+                    <p className="rp-batch-muted">
+                      Nenhuma equipe disponível. Verifique seu cadastro como
+                      gestor.
+                    </p>
+                  ) : (
+                    <div className="rp-batch-team-pills">
+                      {managerTeams.map((team) => (
+                        <button
+                          key={team.id}
+                          type="button"
+                          className={`rp-batch-team-pill ${selectedTeamId === team.id ? "rp-batch-team-pill--active" : ""}`}
+                          onClick={() => selectTeamForBooking(team.id)}
+                        >
+                          <span aria-hidden>👥</span>
+                          <span>{team.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedTeamId ? (
+                    <div className="rp-batch-members">
+                      <div className="rp-batch-members-head">
+                        <p className="rp-batch-team-label">
+                          Membros ({teamSize} selecionados)
+                        </p>
+                        <button
+                          type="button"
+                          className="rp-batch-link"
+                          onClick={() =>
+                            setTeamMembers((prev) => toggleAllBatchMembers(prev))
+                          }
+                        >
+                          Selecionar todos
+                        </button>
+                      </div>
+                      <div className="rp-batch-members-grid">
+                        {teamMembers.map((member, index) => (
+                          <label
+                            key={member.id}
+                            className={`rp-batch-member ${member.selected ? "rp-batch-member--on" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={member.selected}
+                              onChange={() =>
+                                setTeamMembers((prev) =>
+                                  toggleBatchMemberSelection(prev, index),
+                                )
+                              }
+                            />
+                            <span className="rp-batch-member-avatar">
+                              {member.name
+                                .split(/\s+/)
+                                .map((n) => n[0])
+                                .join("")
+                                .slice(0, 2)}
+                            </span>
+                            <span className="rp-batch-member-text">
+                              <strong>{member.name}</strong>
+                              <span>{member.role}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      {teamSize < 2 ? (
+                        <p className="rp-batch-hint">
+                          Reserva em lote exige pelo menos 2 membros.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {currentStep === 1 ? (
                 <div className="rp-calendar">
                   {WEEKDAYS.map((d) => (
@@ -964,6 +1209,35 @@ export function RoomsPremiumBooking({
                 </>
               ) : null}
 
+              {currentStep === positionStep && selectedRoom && isBatchBooking ? (
+                <>
+                  <div className="rp-batch-assign-bar">
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--rp-muted)" }}>
+                      Atribua uma estação para cada membro (
+                      {batchAssignments.length}/{teamSize})
+                    </p>
+                    <div className="rp-batch-member-chips">
+                      {effectiveMembers.map((member, idx) => {
+                        const hasSeat = batchAssignments.some(
+                          (a) => a.memberIndex === idx,
+                        );
+                        return (
+                          <button
+                            key={member.id}
+                            type="button"
+                            className={`rp-batch-chip ${currentMemberIndex === idx ? "rp-batch-chip--active" : ""} ${hasSeat ? "rp-batch-chip--done" : ""}`}
+                            onClick={() => setCurrentMemberIndex(idx)}
+                          >
+                            {member.name.split(" ")[0]}
+                            {hasSeat ? " ✓" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
               {currentStep === positionStep && selectedRoom ? (
                 <>
                   <div
@@ -978,7 +1252,17 @@ export function RoomsPremiumBooking({
                   >
                     <p style={{ color: "var(--rp-muted)", fontSize: 13, margin: 0 }}>
                       Estações disponíveis em{" "}
-                      <strong style={{ color: "#fff" }}>{selectedRoom.name}</strong>:
+                      <strong style={{ color: "#fff" }}>{selectedRoom.name}</strong>
+                      {isBatchBooking ? (
+                        <>
+                          {" "}
+                          — membro:{" "}
+                          <strong style={{ color: "#60a5fa" }}>
+                            {effectiveMembers[currentMemberIndex]?.name ?? "—"}
+                          </strong>
+                        </>
+                      ) : null}
+                      :
                     </p>
                     <span className="rp-compat-badge">
                       {filteredPositions.length} estações compatíveis
@@ -1018,32 +1302,71 @@ export function RoomsPremiumBooking({
                         );
                         const disabled =
                           pos.blocked || pos.occupied || !compatible;
+                        const batchAssigned = batchAssignments.find(
+                          (a) => a.positionId === pos.id,
+                        );
+                        const isCurrentBatch =
+                          isBatchBooking &&
+                          batchAssigned?.memberIndex === currentMemberIndex;
+                        const isOtherBatch =
+                          isBatchBooking && batchAssigned && !isCurrentBatch;
                         return (
                           <button
                             key={pos.id}
                             type="button"
                             className={`rp-seat ${
-                              selectedPosition?.id === pos.id
-                                ? "rp-seat--selected"
-                                : pos.blocked
-                                  ? "rp-seat--blocked"
-                                  : pos.occupied
-                                    ? "rp-seat--busy"
-                                    : !compatible
-                                      ? "rp-seat--incompatible"
-                                      : ""
+                              isBatchBooking
+                                ? batchAssigned
+                                  ? isCurrentBatch
+                                    ? "rp-seat--batch-current"
+                                    : "rp-seat--batch-other"
+                                  : disabled
+                                    ? pos.blocked
+                                      ? "rp-seat--blocked"
+                                      : pos.occupied
+                                        ? "rp-seat--busy"
+                                        : !compatible
+                                          ? "rp-seat--incompatible"
+                                          : ""
+                                    : ""
+                                : selectedPosition?.id === pos.id
+                                  ? "rp-seat--selected"
+                                  : pos.blocked
+                                    ? "rp-seat--blocked"
+                                    : pos.occupied
+                                      ? "rp-seat--busy"
+                                      : !compatible
+                                        ? "rp-seat--incompatible"
+                                        : ""
                             }`}
-                            disabled={disabled}
+                            disabled={
+                              isBatchBooking
+                                ? pos.blocked ||
+                                  pos.occupied ||
+                                  (!compatible && !batchAssigned)
+                                : disabled
+                            }
                             title={
                               pos.blocked
                                 ? "Estação bloqueada pelo administrador"
-                                : !compatible && isPositionSelectable(pos)
-                                  ? "Não atende às preferências selecionadas"
-                                  : undefined
+                                : isOtherBatch
+                                  ? `Atribuída a ${batchAssigned?.assignedTo}`
+                                  : !compatible && isPositionSelectable(pos)
+                                    ? "Não atende às preferências selecionadas"
+                                    : undefined
                             }
-                            onClick={() => setSelectedPosition(pos)}
+                            onClick={() =>
+                              isBatchBooking
+                                ? handleBatchPositionClick(pos)
+                                : setSelectedPosition(pos)
+                            }
                           >
                             {pos.name}
+                            {isBatchBooking && batchAssigned ? (
+                              <span className="rp-seat-batch-tag">
+                                {batchAssigned.assignedTo.split(" ")[0]}
+                              </span>
+                            ) : null}
                             {!compatible && isPositionSelectable(pos) ? (
                               <span style={{ fontSize: 10, marginTop: 2 }}>⚠</span>
                             ) : null}
@@ -1061,12 +1384,26 @@ export function RoomsPremiumBooking({
                     <span>Sala</span>
                     <strong>{selectedRoom.name}</strong>
                   </div>
-                  <div className="rp-summary-row">
-                    <span>Estação</span>
-                    <strong style={{ color: "var(--rp-highlight)" }}>
-                      {selectedPosition?.name ?? "—"}
-                    </strong>
-                  </div>
+                  {isBatchBooking && teamSize >= 2 ? (
+                    <div className="rp-summary-row rp-summary-row--stack">
+                      <span>Equipe ({teamSize} membros)</span>
+                      <ul className="rp-batch-summary-list">
+                        {batchAssignments.map((a) => (
+                          <li key={`${a.memberIndex}-${a.positionId}`}>
+                            <strong>{a.assignedTo}</strong>
+                            <span>→ {a.position.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="rp-summary-row">
+                      <span>Estação</span>
+                      <strong style={{ color: "var(--rp-highlight)" }}>
+                        {selectedPosition?.name ?? "—"}
+                      </strong>
+                    </div>
+                  )}
                   <div className="rp-summary-row">
                     <span>Data</span>
                     <strong>{formatFilterDateLabel(filterDate)}</strong>
@@ -1210,13 +1547,16 @@ export function RoomsPremiumBooking({
         </div>
       ) : null}
 
-      {showSuccess && selectedPosition ? (
+      {showSuccess &&
+      (selectedPosition || (isBatchBooking && batchSuccessCount > 0)) ? (
         <div className="rp-toast" role="status">
           <span style={{ fontSize: 20 }}>✓</span>
           <div>
             <strong>Reserva confirmada!</strong>
             <p style={{ margin: "2px 0 0", fontSize: 12, opacity: 0.9 }}>
-              Estação {selectedPosition.name} reservada com sucesso.
+              {isBatchBooking && batchSuccessCount > 0
+                ? `${batchSuccessCount} estações reservadas com sucesso para sua equipe.`
+                : `Estação ${selectedPosition?.name ?? ""} reservada com sucesso.`}
             </p>
           </div>
         </div>
