@@ -7,6 +7,7 @@ import com.accenture.officehub_v1.dto.response.ReservaResponse;
 import com.accenture.officehub_v1.entity.Posicao;
 import com.accenture.officehub_v1.entity.Reserva;
 import com.accenture.officehub_v1.entity.ReservaPessoa;
+import com.accenture.officehub_v1.entity.ReservaPosicao;
 import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.Usuario;
 import com.accenture.officehub_v1.entity.enums.StatusReserva;
@@ -16,10 +17,13 @@ import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
 import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
 import com.accenture.officehub_v1.repository.ReservaRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
+import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
+import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.List;
@@ -42,57 +46,33 @@ public class ReservaService {
     private final DisponibilidadeService disponibilidadeService;
     private final PosicaoService posicaoService;
     private final NotificacaoService notificacaoService;
+    private final AlocacaoPosicaoService alocacaoPosicaoService;
 
-    /**
-     * Versão inicial: valida regras de negócio e persiste a reserva como PENDENTE.
-     * A alocação definitiva de posições pelo Agente de IA (RF-19) será integrada posteriormente.
-     */
     @Transactional
     public ReservaResponse solicitarReserva(SolicitarReservaRequest request, UUID solicitanteId) {
-        Sala sala = salaService.buscarEntidadeAtiva(request.salaId());
-        salaService.validarSalaAtiva(request.salaId());
-        disponibilidadeService.validarDisponibilidade(request.salaId(), request.dataReserva());
+        Sala sala = validarPreCondicoesReserva(request);
 
-        validarQuantidadePessoas(request);
+        validarQuantidadePessoas(request, sala);
         validarPessoasInformadas(request);
+        validarCriterioProximidade(request.criterioProximidade());
 
         List<Posicao> posicoesLivres = buscarPosicoesLivres(request.salaId(), request.dataReserva());
-        validarPosicoesSuficientes(posicoesLivres.size(), request.quantidadePessoas());
+
+        ResultadoAlocacao resultado = alocacaoPosicaoService.alocar(
+                request.pessoas(),
+                posicoesLivres,
+                request.criterioProximidade(),
+                sala.getRaioProximidade());
 
         Usuario solicitante = usuarioRepository.findByIdAndDeletedAtIsNull(solicitanteId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Solicitante da reserva não encontrado."));
 
-        Reserva reserva = Reserva.builder()
-                .sala(sala)
-                .solicitante(solicitante)
-                .dataReserva(request.dataReserva())
-                .quantidadePessoas(request.quantidadePessoas())
-                .criterioProximidade(request.criterioProximidade())
-                .status(StatusReserva.PENDENTE)
-                .build();
-
-        reserva = reservaRepository.save(reserva);
-
-        Reserva reservaFinal = reserva;
-        for (PessoaReservaRequest pessoaRequest : request.pessoas()) {
-            Usuario usuario = pessoaRequest.usuarioId() != null
-                    ? usuarioRepository.findByIdAndDeletedAtIsNull(pessoaRequest.usuarioId()).orElse(null)
-                    : null;
-
-            ReservaPessoa pessoa = ReservaPessoa.builder()
-                    .reserva(reservaFinal)
-                    .usuario(usuario)
-                    .nomeExterno(pessoaRequest.nomeExterno())
-                    .tipoPreferido1(pessoaRequest.tipoPreferido1())
-                    .tipoPreferido2(pessoaRequest.tipoPreferido2())
-                    .tipoPreferido3(pessoaRequest.tipoPreferido3())
-                    .build();
-
-            reservaPessoaRepository.save(pessoa);
+        if (resultado.sucesso()) {
+            return persistirReservaConfirmada(request, sala, solicitante, resultado.alocacoes());
         }
 
-        return ReservaResponse.from(reserva);
+        return persistirReservaRejeitada(request, sala, solicitante, resultado.motivoFalha());
     }
 
     @Transactional
@@ -153,7 +133,7 @@ public class ReservaService {
         return ReservaResponse.from(buscarEntidadeAtiva(id));
     }
 
-    public List<Posicao> buscarPosicoesLivres(UUID salaId, java.time.LocalDate data) {
+    public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data) {
         List<Posicao> posicoesAtivas = posicaoService.listarPosicoesAtivasDaSala(salaId);
         List<UUID> posicoesOcupadas = reservaPosicaoRepository.findPosicaoIdsOcupadas(
                 salaId, data, STATUS_OCUPAM_POSICAO);
@@ -169,9 +149,95 @@ public class ReservaService {
                         "Reserva não encontrada ou foi cancelada."));
     }
 
-    private void validarQuantidadePessoas(SolicitarReservaRequest request) {
+    /**
+     * Bloqueia reserva quando sala inativa, data em exceção, antecedência ou dia da semana inválido.
+     */
+    private Sala validarPreCondicoesReserva(SolicitarReservaRequest request) {
         Sala sala = salaService.buscarEntidadeAtiva(request.salaId());
+        salaService.validarSalaAtiva(request.salaId());
+        disponibilidadeService.validarDisponibilidade(request.salaId(), request.dataReserva());
+        return sala;
+    }
 
+    private ReservaResponse persistirReservaConfirmada(
+            SolicitarReservaRequest request,
+            Sala sala,
+            Usuario solicitante,
+            List<ItemAlocacao> alocacoes) {
+
+        Reserva reserva = reservaRepository.save(Reserva.builder()
+                .sala(sala)
+                .solicitante(solicitante)
+                .dataReserva(request.dataReserva())
+                .quantidadePessoas(request.quantidadePessoas())
+                .criterioProximidade(request.criterioProximidade())
+                .status(StatusReserva.CONFIRMADA)
+                .build());
+
+        persistirPessoasEPosicoes(reserva, alocacoes);
+        notificacaoService.notificarConfirmacaoReserva(reserva);
+        return ReservaResponse.from(reserva, alocacoes);
+    }
+
+    private ReservaResponse persistirReservaRejeitada(
+            SolicitarReservaRequest request,
+            Sala sala,
+            Usuario solicitante,
+            String motivo) {
+
+        Reserva reserva = reservaRepository.save(Reserva.builder()
+                .sala(sala)
+                .solicitante(solicitante)
+                .dataReserva(request.dataReserva())
+                .quantidadePessoas(request.quantidadePessoas())
+                .criterioProximidade(request.criterioProximidade())
+                .status(StatusReserva.REJEITADA)
+                .motivoRejeicao(motivo)
+                .build());
+
+        persistirPessoasSemPosicoes(reserva, request.pessoas());
+        notificacaoService.notificarRejeicaoReserva(reserva);
+        return ReservaResponse.from(reserva);
+    }
+
+    private void persistirPessoasEPosicoes(Reserva reserva, List<ItemAlocacao> alocacoes) {
+        for (ItemAlocacao item : alocacoes) {
+            ReservaPessoa pessoa = salvarReservaPessoa(reserva, item.pessoa());
+
+            ReservaPosicao reservaPosicao = ReservaPosicao.builder()
+                    .reserva(reserva)
+                    .reservaPessoa(pessoa)
+                    .posicao(item.posicao())
+                    .build();
+
+            reservaPosicaoRepository.save(reservaPosicao);
+        }
+    }
+
+    private void persistirPessoasSemPosicoes(Reserva reserva, List<PessoaReservaRequest> pessoas) {
+        for (PessoaReservaRequest pessoaRequest : pessoas) {
+            salvarReservaPessoa(reserva, pessoaRequest);
+        }
+    }
+
+    private ReservaPessoa salvarReservaPessoa(Reserva reserva, PessoaReservaRequest pessoaRequest) {
+        Usuario usuario = pessoaRequest.usuarioId() != null
+                ? usuarioRepository.findByIdAndDeletedAtIsNull(pessoaRequest.usuarioId()).orElse(null)
+                : null;
+
+        ReservaPessoa pessoa = ReservaPessoa.builder()
+                .reserva(reserva)
+                .usuario(usuario)
+                .nomeExterno(pessoaRequest.nomeExterno())
+                .tipoPreferido1(pessoaRequest.tipoPreferido1())
+                .tipoPreferido2(pessoaRequest.tipoPreferido2())
+                .tipoPreferido3(pessoaRequest.tipoPreferido3())
+                .build();
+
+        return reservaPessoaRepository.save(pessoa);
+    }
+
+    private void validarQuantidadePessoas(SolicitarReservaRequest request, Sala sala) {
         if (request.quantidadePessoas() > sala.getCapacidadeMaxima()) {
             throw new RegraNegocioException(String.format(
                     "A quantidade de pessoas (%d) excede a capacidade máxima da sala (%d).",
@@ -195,12 +261,10 @@ public class ReservaService {
         }
     }
 
-    private void validarPosicoesSuficientes(int posicoesLivres, int quantidadePessoas) {
-        if (posicoesLivres < quantidadePessoas) {
-            throw new RegraNegocioException(String.format(
-                    "Não há posições livres suficientes na data solicitada. " +
-                            "Disponíveis: %d, solicitadas: %d.",
-                    posicoesLivres, quantidadePessoas));
+    private void validarCriterioProximidade(String criterio) {
+        if (!CriterioProximidade.isObrigatoria(criterio) && !CriterioProximidade.isPreferencial(criterio)) {
+            throw new RegraNegocioException(
+                    "Critério de proximidade inválido. Use OBRIGATORIA ou PREFERENCIAL.");
         }
     }
 }

@@ -232,6 +232,48 @@ curl -X PATCH http://localhost:8080/api/v1/posicoes/{POSICAO_ID}/coordenadas \
 curl -X PATCH http://localhost:8080/api/v1/posicoes/{POSICAO_ID}/inativar
 ```
 
+### Vincular equipamento à posição (RF-09, RF-10)
+
+> **Pré-requisito:** tipo de equipamento cadastrado e ativo em `tipos_equipamento`.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/posicoes/{POSICAO_ID}/equipamentos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tipoEquipamentoId": "{TIPO_EQUIPAMENTO_ID}",
+    "quantidade": 2,
+    "observacao": "Monitor duplo"
+  }'
+```
+
+**Esperado:** `201 Created` com o vínculo criado.
+
+**Erros comuns (`422`):**
+- Tipo de equipamento já vinculado à mesma posição
+- Tipo de equipamento inativo ou inexistente (`404`)
+
+### Listar equipamentos da posição
+
+```bash
+curl http://localhost:8080/api/v1/posicoes/{POSICAO_ID}/equipamentos
+```
+
+**Exemplo de resposta:**
+
+```json
+[
+  {
+    "id": "...",
+    "posicaoId": "...",
+    "tipoEquipamentoId": "...",
+    "tipoEquipamentoNome": "Monitor",
+    "quantidade": 2,
+    "observacao": "Monitor duplo",
+    "createdAt": "2026-06-03T14:00:00-03:00"
+  }
+]
+```
+
 ---
 
 ## 4. DisponibilidadeController

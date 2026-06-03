@@ -2,7 +2,10 @@ package com.accenture.officehub_v1.controller;
 
 import com.accenture.officehub_v1.dto.request.AtualizarCoordenadasPosicaoRequest;
 import com.accenture.officehub_v1.dto.request.CriarPosicaoRequest;
+import com.accenture.officehub_v1.dto.request.VincularEquipamentoPosicaoRequest;
+import com.accenture.officehub_v1.dto.response.PosicaoEquipamentoResponse;
 import com.accenture.officehub_v1.dto.response.PosicaoResponse;
+import com.accenture.officehub_v1.service.PosicaoEquipamentoService;
 import com.accenture.officehub_v1.service.PosicaoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ import java.util.UUID;
 public class PosicaoController {
 
     private final PosicaoService posicaoService;
+    private final PosicaoEquipamentoService posicaoEquipamentoService;
 
     @GetMapping("/api/v1/salas/{salaId}/posicoes")
     public ResponseEntity<List<PosicaoResponse>> listarPorSala(@PathVariable UUID salaId) {
@@ -51,5 +55,18 @@ public class PosicaoController {
     @PatchMapping("/api/v1/posicoes/{id}/inativar")
     public ResponseEntity<PosicaoResponse> inativar(@PathVariable UUID id) {
         return ResponseEntity.ok(posicaoService.inativar(id));
+    }
+
+    @PostMapping("/api/v1/posicoes/{id}/equipamentos")
+    public ResponseEntity<PosicaoEquipamentoResponse> vincularEquipamento(
+            @PathVariable UUID id,
+            @Valid @RequestBody VincularEquipamentoPosicaoRequest request) {
+        PosicaoEquipamentoResponse response = posicaoEquipamentoService.vincular(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/api/v1/posicoes/{id}/equipamentos")
+    public ResponseEntity<List<PosicaoEquipamentoResponse>> listarEquipamentos(@PathVariable UUID id) {
+        return ResponseEntity.ok(posicaoEquipamentoService.listarPorPosicao(id));
     }
 }

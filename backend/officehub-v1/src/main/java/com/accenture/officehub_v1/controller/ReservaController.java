@@ -4,6 +4,7 @@ import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
+import com.accenture.officehub_v1.entity.enums.StatusReserva;
 import com.accenture.officehub_v1.service.ReservaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,11 @@ public class ReservaController {
             @Valid @RequestBody SolicitarReservaRequest request,
             @RequestHeader("X-Usuario-Id") UUID solicitanteId) {
         ReservaResponse response = reservaService.solicitarReserva(request, solicitanteId);
+
+        if (response.status() == StatusReserva.REJEITADA) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
