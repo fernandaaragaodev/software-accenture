@@ -92,7 +92,6 @@ public class AlocacaoPosicaoService {
 
         List<ItemAlocacao> resultado = new ArrayList<>();
         List<Posicao> posicoesAlocadas = alocacao.get();
-
         for (int i = 0; i < pessoas.size(); i++) {
             resultado.add(new ItemAlocacao(pessoas.get(i), posicoesAlocadas.get(i)));
         }
@@ -136,7 +135,7 @@ public class AlocacaoPosicaoService {
                 return solucao;
             }
 
-            atribuidas.remove(atribuidas.size() - 1);
+            atribuidas.removeLast();
             usadas.remove(candidata.getId());
         }
 
@@ -173,40 +172,34 @@ public class AlocacaoPosicaoService {
         }
 
         String tipoPosicao = posicao.getTipo().trim();
-
         return preferencias.stream()
                 .anyMatch(pref -> pref.equalsIgnoreCase(tipoPosicao));
     }
 
     private Posicao escolherMelhorRank(List<Posicao> candidatas, PessoaReservaRequest pessoa) {
-        return ordenarPorRank(candidatas, pessoa).get(0);
+        return ordenarPorRank(candidatas, pessoa).getFirst();
     }
 
     private Posicao escolherMaisProxima(List<Posicao> candidatas, List<Posicao> atribuidas) {
         if (atribuidas.isEmpty()) {
-            return candidatas.get(0);
+            return candidatas.getFirst();
         }
-
-        return ordenarPorProximidade(candidatas, atribuidas).get(0);
+        return ordenarPorProximidade(candidatas, atribuidas).getFirst();
     }
 
     private List<Posicao> ordenarPorRank(List<Posicao> candidatas, PessoaReservaRequest pessoa) {
         return candidatas.stream()
                 .sorted(Comparator
                         .comparingInt((Posicao p) -> rankPreferencia(p, pessoa))
-                        .thenComparing(
-                                Posicao::getIdentificador,
-                                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                        .thenComparing(Posicao::getIdentificador, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
     private List<Posicao> ordenarPorProximidade(List<Posicao> candidatas, List<Posicao> referencias) {
         return candidatas.stream()
                 .sorted(Comparator
-                        .comparingDouble((Posicao c) -> distanciaMinima(c, referencias))
-                        .thenComparing(
-                                Posicao::getIdentificador,
-                                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                        .comparingDouble(c -> distanciaMinima(c, referencias))
+                        .thenComparing(Posicao::getIdentificador, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
@@ -214,21 +207,16 @@ public class AlocacaoPosicaoService {
         if (posicao.getTipo() == null) {
             return Integer.MAX_VALUE;
         }
-
         String tipo = posicao.getTipo().trim();
-
         if (equalsIgnoreCase(pessoa.tipoPreferido1(), tipo)) {
             return 1;
         }
-
         if (equalsIgnoreCase(pessoa.tipoPreferido2(), tipo)) {
             return 2;
         }
-
         if (equalsIgnoreCase(pessoa.tipoPreferido3(), tipo)) {
             return 3;
         }
-
         return Integer.MAX_VALUE;
     }
 
@@ -255,7 +243,6 @@ public class AlocacaoPosicaoService {
                 }
             }
         }
-
         return true;
     }
 
@@ -266,7 +253,6 @@ public class AlocacaoPosicaoService {
 
         double dx = a.getCoordX().doubleValue() - b.getCoordX().doubleValue();
         double dy = a.getCoordY().doubleValue() - b.getCoordY().doubleValue();
-
         return Math.sqrt(dx * dx + dy * dy);
     }
 
@@ -276,9 +262,7 @@ public class AlocacaoPosicaoService {
 
     private List<Posicao> ordenarPosicoes(List<Posicao> posicoes) {
         return posicoes.stream()
-                .sorted(Comparator.comparing(
-                        Posicao::getIdentificador,
-                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .sorted(Comparator.comparing(Posicao::getIdentificador, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
