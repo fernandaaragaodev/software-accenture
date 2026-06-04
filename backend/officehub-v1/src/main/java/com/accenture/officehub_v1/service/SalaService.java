@@ -11,6 +11,7 @@ import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.SalaRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class SalaService {
 
     private final SalaRepository salaRepository;
     private final UsuarioRepository usuarioRepository;
+    private final AuditService auditService;
 
     @Transactional
     public SalaResponse criar(CriarSalaRequest request, UUID createdById) {
@@ -47,7 +49,9 @@ public class SalaService {
                 .createdBy(createdBy)
                 .build();
 
-        return SalaResponse.from(salaRepository.save(sala));
+        Sala salaSalva = salaRepository.save(sala);
+        auditService.registrar(createdById, "CRIAR", "Sala", salaSalva.getId());
+        return SalaResponse.from(salaSalva);
     }
 
     public List<SalaResponse> listarNaoDeletadas() {
@@ -73,7 +77,9 @@ public class SalaService {
         sala.setRaioProximidade(request.raioProximidade());
         sala.setImagemPath(request.imagemPath());
 
-        return SalaResponse.from(salaRepository.save(sala));
+        Sala salaSalva = salaRepository.save(sala);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "ATUALIZAR", "Sala", salaSalva.getId());
+        return SalaResponse.from(salaSalva);
     }
 
     @Transactional

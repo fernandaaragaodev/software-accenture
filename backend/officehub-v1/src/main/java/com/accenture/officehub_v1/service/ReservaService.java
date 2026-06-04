@@ -47,6 +47,7 @@ public class ReservaService {
     private final PosicaoService posicaoService;
     private final NotificacaoService notificacaoService;
     private final AlocacaoPosicaoService alocacaoPosicaoService;
+    private final AuditService auditService;
 
     @Transactional
     public ReservaResponse solicitarReserva(SolicitarReservaRequest request, UUID solicitanteId) {
@@ -69,10 +70,16 @@ public class ReservaService {
                         "Solicitante da reserva não encontrado."));
 
         if (resultado.sucesso()) {
-            return persistirReservaConfirmada(request, sala, solicitante, resultado.alocacoes());
+            ReservaResponse response =
+                    persistirReservaConfirmada(request, sala, solicitante, resultado.alocacoes());
+            auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
+            return response;
         }
 
-        return persistirReservaRejeitada(request, sala, solicitante, resultado.motivoFalha());
+        ReservaResponse response =
+                persistirReservaRejeitada(request, sala, solicitante, resultado.motivoFalha());
+        auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
+        return response;
     }
 
     @Transactional
@@ -95,6 +102,7 @@ public class ReservaService {
 
         reserva = reservaRepository.save(reserva);
         notificacaoService.notificarCancelamentoReserva(reserva);
+        auditService.registrar(canceladoPorId, "CANCELAR", "Reserva", reserva.getId());
         return ReservaResponse.from(reserva);
     }
 

@@ -16,6 +16,7 @@ import com.accenture.officehub_v1.repository.ExcecaoDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.HorarioDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.RegraDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class DisponibilidadeService {
     private final ExcecaoDisponibilidadeRepository excecaoDisponibilidadeRepository;
     private final SalaService salaService;
     private final UsuarioRepository usuarioRepository;
+    private final AuditService auditService;
 
     @Transactional
     public RegraDisponibilidadeResponse criarRegra(UUID salaId, CriarRegraDisponibilidadeRequest request) {
@@ -66,6 +68,7 @@ public class DisponibilidadeService {
                 .map(horarioDisponibilidadeRepository::save)
                 .toList();
 
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CRIAR", "RegraDisponibilidade", regra.getId());
         return RegraDisponibilidadeResponse.from(regra, horarios);
     }
 
@@ -89,7 +92,8 @@ public class DisponibilidadeService {
                 .createdBy(createdBy)
                 .build();
 
-        excecaoDisponibilidadeRepository.save(excecao);
+        ExcecaoDisponibilidade excecaoSalva = excecaoDisponibilidadeRepository.save(excecao);
+        auditService.registrar(createdById, "ALTERAR_DISPONIBILIDADE", "ExcecaoDisponibilidade", excecaoSalva.getId());
     }
 
     public ValidacaoDisponibilidadeResponse validarReservaPermitida(UUID salaId, LocalDate data) {

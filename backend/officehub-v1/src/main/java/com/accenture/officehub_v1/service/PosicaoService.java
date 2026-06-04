@@ -10,6 +10,7 @@ import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.LayoutRepository;
 import com.accenture.officehub_v1.repository.PosicaoRepository;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class PosicaoService {
     private final PosicaoRepository posicaoRepository;
     private final SalaService salaService;
     private final LayoutRepository layoutRepository;
+    private final AuditService auditService;
 
     @Transactional
     public PosicaoResponse criar(CriarPosicaoRequest request) {
@@ -48,7 +50,9 @@ public class PosicaoService {
                 .status(PosicaoStatus.ATIVA)
                 .build();
 
-        return PosicaoResponse.from(posicaoRepository.save(posicao));
+        Posicao posicaoSalva = posicaoRepository.save(posicao);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CRIAR", "Posicao", posicaoSalva.getId());
+        return PosicaoResponse.from(posicaoSalva);
     }
 
     public List<PosicaoResponse> listarPorSala(UUID salaId) {
@@ -68,7 +72,9 @@ public class PosicaoService {
         posicao.setCoordX(request.coordX());
         posicao.setCoordY(request.coordY());
         posicao.setAjustadoManualmente(true);
-        return PosicaoResponse.from(posicaoRepository.save(posicao));
+        Posicao posicaoSalva = posicaoRepository.save(posicao);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "ATUALIZAR", "Posicao", posicaoSalva.getId());
+        return PosicaoResponse.from(posicaoSalva);
     }
 
     @Transactional
