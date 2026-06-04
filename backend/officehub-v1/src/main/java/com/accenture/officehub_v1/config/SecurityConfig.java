@@ -5,7 +5,6 @@ import com.accenture.officehub_v1.security.JsonAuthenticationEntryPoint;
 import com.accenture.officehub_v1.security.JwtAuthenticationFilter;
 import com.accenture.officehub_v1.security.LoginRateLimitFilter;
 import com.accenture.officehub_v1.security.Roles;
-import com.accenture.officehub_v1.security.UsuarioDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
