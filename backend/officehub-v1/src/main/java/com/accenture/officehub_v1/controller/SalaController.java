@@ -4,6 +4,7 @@ import com.accenture.officehub_v1.dto.request.AtualizarSalaRequest;
 import com.accenture.officehub_v1.dto.request.AtualizarStatusSalaRequest;
 import com.accenture.officehub_v1.dto.request.CriarSalaRequest;
 import com.accenture.officehub_v1.dto.response.SalaResponse;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.SalaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,9 +30,8 @@ public class SalaController {
     private final SalaService salaService;
 
     @PostMapping
-    public ResponseEntity<SalaResponse> criar(
-            @Valid @RequestBody CriarSalaRequest request,
-            @RequestHeader("X-Usuario-Id") UUID usuarioId) {
+    public ResponseEntity<SalaResponse> criar(@Valid @RequestBody CriarSalaRequest request) {
+        UUID usuarioId = SecurityUtils.getUsuarioIdAtual();
         SalaResponse response = salaService.criar(request, usuarioId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

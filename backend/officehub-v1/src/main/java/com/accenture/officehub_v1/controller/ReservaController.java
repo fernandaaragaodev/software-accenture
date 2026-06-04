@@ -5,6 +5,7 @@ import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
 import com.accenture.officehub_v1.entity.enums.StatusReserva;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.ReservaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,9 +30,8 @@ public class ReservaController {
     private final ReservaService reservaService;
 
     @PostMapping
-    public ResponseEntity<ReservaResponse> solicitar(
-            @Valid @RequestBody SolicitarReservaRequest request,
-            @RequestHeader("X-Usuario-Id") UUID solicitanteId) {
+    public ResponseEntity<ReservaResponse> solicitar(@Valid @RequestBody SolicitarReservaRequest request) {
+        UUID solicitanteId = SecurityUtils.getUsuarioIdAtual();
         ReservaResponse response = reservaService.solicitarReserva(request, solicitanteId);
 
         if (response.status() == StatusReserva.REJEITADA) {
@@ -62,8 +61,8 @@ public class ReservaController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ReservaResponse> cancelar(
             @PathVariable UUID id,
-            @Valid @RequestBody CancelarReservaRequest request,
-            @RequestHeader("X-Usuario-Id") UUID canceladoPorId) {
+            @Valid @RequestBody CancelarReservaRequest request) {
+        UUID canceladoPorId = SecurityUtils.getUsuarioIdAtual();
         return ResponseEntity.ok(reservaService.cancelarReserva(id, request, canceladoPorId));
     }
 }

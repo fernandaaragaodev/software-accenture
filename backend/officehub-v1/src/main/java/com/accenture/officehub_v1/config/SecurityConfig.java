@@ -40,8 +40,13 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register")
+                        .hasAuthority(Roles.ADMIN_SALA)
+                        .requestMatchers("/api/v1/auth/**")
+                        .authenticated()
                         .requestMatchers(
-                                "/api/v1/auth/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/api/docs/**",

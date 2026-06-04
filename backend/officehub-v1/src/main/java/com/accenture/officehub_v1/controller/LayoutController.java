@@ -3,6 +3,7 @@ package com.accenture.officehub_v1.controller;
 import com.accenture.officehub_v1.dto.request.AtualizarCoordenadasPosicaoRequest;
 import com.accenture.officehub_v1.dto.request.CriarLayoutRequest;
 import com.accenture.officehub_v1.dto.response.LayoutResponse;
+import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.LayoutService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -36,9 +36,8 @@ public class LayoutController {
     }
 
     @PatchMapping("/api/v1/layouts/{id}/aprovar")
-    public ResponseEntity<LayoutResponse> aprovar(
-            @PathVariable UUID id,
-            @RequestHeader("X-Usuario-Id") UUID usuarioId) {
+    public ResponseEntity<LayoutResponse> aprovar(@PathVariable UUID id) {
+        UUID usuarioId = SecurityUtils.getUsuarioIdAtual();
         return ResponseEntity.ok(layoutService.aprovar(id, usuarioId));
     }
 

@@ -75,7 +75,7 @@ app.security.rate-limit.login-per-minute=10
 | `POST` | `/login` | Valida credenciais, emite JWT + refresh |
 | `POST` | `/refresh` | Valida refresh, revoga o antigo, emite novos tokens |
 | `POST` | `/logout` | Revoga refresh token; audita logout se houver JWT |
-| `POST` | `/register` | Cria usuário com BCrypt e perfil `USUARIO_FINAL` (aberto para testes) |
+| `POST` | `/register` | Cria usuário com BCrypt e perfil `USUARIO_FINAL` (**requer** `ADMIN_SALA`) |
 
 ### Exemplo de resposta de login
 
@@ -154,9 +154,15 @@ Exceção `CredenciaisInvalidasException` → HTTP **401** via `GlobalExceptionH
 
 ### Públicas (sem token)
 
-- `/api/v1/auth/**`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
 - `/swagger-ui/**`, `/v3/api-docs/**`, `/api/docs/**`
 - `/api/v1/health`
+
+### Autenticação obrigatória em auth
+
+- `POST /api/v1/auth/register` — perfil `ADMIN_SALA`
+- `POST /api/v1/auth/logout` — usuário autenticado (JWT)
 
 ### Demais rotas
 
@@ -244,15 +250,20 @@ Os perfis devem existir na tabela `perfis` com estes nomes exatos:
 - `USUARIO_FINAL`
 - `INTEGRADOR`
 
+Na subida da aplicação, `PerfilDataInitializer` cria qualquer perfil ausente (idempotente).
+
 O **register** associa automaticamente `USUARIO_FINAL`. Demais perfis devem ser vinculados em `usuario_perfis` (administração futura).
+
+> O primeiro `ADMIN_SALA` ainda precisa ser criado manualmente no banco (ou via script) para poder chamar `/register`.
 
 ---
 
 ## 19. Como testar (curl)
 
 ```bash
-# Registro
+# Registro (requer JWT de usuário com ADMIN_SALA)
 curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Authorization: Bearer <accessTokenAdmin>" \
   -H "Content-Type: application/json" \
   -d '{"nome":"Teste","email":"teste@accenture.com","senha":"senha12345"}'
 
@@ -303,11 +314,14 @@ exception/
 
 ## 21. Próximos passos recomendados
 
-1. Restringir `/api/v1/auth/register` a `ADMIN_SALA` em produção.
-2. Substituir header `X-Usuario-Id` pelo `usuarioId` do JWT nos controllers.
+1. ~~Restringir `/api/v1/auth/register` a `ADMIN_SALA`~~ — feito em `SecurityConfig`.
+2. ~~Substituir header `X-Usuario-Id` pelo JWT~~ — controllers usam `SecurityUtils.getUsuarioIdAtual()`.
 3. HTTPS terminado no gateway/load balancer.
 4. Rate limiting distribuído (Redis) e por token.
 5. Rotação de `app.security.jwt.secret` com estratégia de migração de tokens.
+6. Script ou painel para criar o primeiro usuário `ADMIN_SALA` em ambientes novos.
+
+Testes automatizados de RBAC: `src/test/java/.../security/RbacAuthorizationTest.java` (perfil `test` com H2).
 
 ---
 
