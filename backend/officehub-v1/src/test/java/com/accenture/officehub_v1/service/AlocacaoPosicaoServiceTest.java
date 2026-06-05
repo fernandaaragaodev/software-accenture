@@ -43,6 +43,22 @@ class AlocacaoPosicaoServiceTest {
     }
 
     @Test
+    void deveRejeitarQuandoPosicoesLivresSaoInsuficientes() {
+        List<Posicao> livres = List.of(posicao("P-01", "Estação Padrão", 0, 0));
+        PessoaReservaRequest pessoa1 = pessoa("Estação Padrão", null, null);
+        PessoaReservaRequest pessoa2 = pessoa("Estação Padrão", null, null);
+
+        var resultado = service.alocar(
+                List.of(pessoa1, pessoa2),
+                livres,
+                CriterioProximidade.PREFERENCIAL,
+                BigDecimal.valueOf(5));
+
+        assertThat(resultado.sucesso()).isFalse();
+        assertThat(resultado.motivoFalha()).contains("posições livres suficientes");
+    }
+
+    @Test
     void deveRejeitarQuandoNaoHaTipoCompativel() {
         List<Posicao> livres = List.of(posicao("P-01", "Hot Desk", 1, 1));
         PessoaReservaRequest pessoa = pessoa("Estação Executiva", null, null);

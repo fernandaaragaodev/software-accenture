@@ -12,8 +12,11 @@ import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.Usuario;
 import com.accenture.officehub_v1.entity.enums.StatusReserva;
 import com.accenture.officehub_v1.exception.AcessoNegadoException;
+import com.accenture.officehub_v1.exception.ConflitoAlocacaoException;
 import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
+import com.accenture.officehub_v1.service.ia.AgenteAlocacaoService;
+import com.accenture.officehub_v1.service.ia.ResultadoExecucaoAgente;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
 import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
 import com.accenture.officehub_v1.repository.ReservaRepository;
@@ -48,7 +51,7 @@ public class ReservaService {
     private final DisponibilidadeService disponibilidadeService;
     private final PosicaoService posicaoService;
     private final NotificacaoService notificacaoService;
-    private final AlocacaoPosicaoService alocacaoPosicaoService;
+    private final AgenteAlocacaoService agenteAlocacaoService;
     private final AuditService auditService;
     private final ReservaAutorizacaoService reservaAutorizacaoService;
 
@@ -62,25 +65,27 @@ public class ReservaService {
 
         List<Posicao> posicoesLivres = buscarPosicoesLivres(request.salaId(), request.dataReserva());
 
-        ResultadoAlocacao resultado = alocacaoPosicaoService.alocar(
+        ResultadoExecucaoAgente execucaoIa = agenteAlocacaoService.executar(
+                request.salaId(),
+                request.dataReserva(),
                 request.pessoas(),
-                posicoesLivres,
                 request.criterioProximidade(),
-                sala.getRaioProximidade());
+                sala.getRaioProximidade(),
+                posicoesLivres);
+
+        ResultadoAlocacao resultado = execucaoIa.resultadoAlocacao();
+
+        if (!resultado.sucesso()) {
+            throw new ConflitoAlocacaoException(resultado.motivoFalha());
+        }
 
         Usuario solicitante = usuarioRepository.findByIdAndDeletedAtIsNull(solicitanteId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Solicitante da reserva não encontrado."));
 
-        if (resultado.sucesso()) {
-            ReservaResponse response = persistirReservaConfirmada(
-                    request, sala, solicitante, resultado.alocacoes(), resultado.avisoProximidade());
-            auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
-            return response;
-        }
-
-        ReservaResponse response =
-                persistirReservaRejeitada(request, sala, solicitante, resultado.motivoFalha());
+        ReservaResponse response = persistirReservaConfirmada(
+                request, sala, solicitante, resultado.alocacoes(), resultado.avisoProximidade());
+        agenteAlocacaoService.vincularReferenciaReserva(execucaoIa.execucaoId(), response.id());
         auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
         return response;
     }
@@ -200,27 +205,6 @@ public class ReservaService {
         return ReservaResponse.from(reserva, alocacoes, avisoProximidade);
     }
 
-    private ReservaResponse persistirReservaRejeitada(
-            SolicitarReservaRequest request,
-            Sala sala,
-            Usuario solicitante,
-            String motivo) {
-
-        Reserva reserva = reservaRepository.save(Reserva.builder()
-                .sala(sala)
-                .solicitante(solicitante)
-                .dataReserva(request.dataReserva())
-                .quantidadePessoas(request.quantidadePessoas())
-                .criterioProximidade(request.criterioProximidade())
-                .status(StatusReserva.REJEITADA)
-                .motivoRejeicao(motivo)
-                .build());
-
-        persistirPessoasSemPosicoes(reserva, request.pessoas());
-        notificacaoService.notificarRejeicaoReserva(reserva);
-        return ReservaResponse.from(reserva);
-    }
-
     private void persistirPessoasEPosicoes(Reserva reserva, List<ItemAlocacao> alocacoes) {
         for (ItemAlocacao item : alocacoes) {
             ReservaPessoa pessoa = salvarReservaPessoa(reserva, item.pessoa());
@@ -232,12 +216,6 @@ public class ReservaService {
                     .build();
 
             reservaPosicaoRepository.save(reservaPosicao);
-        }
-    }
-
-    private void persistirPessoasSemPosicoes(Reserva reserva, List<PessoaReservaRequest> pessoas) {
-        for (PessoaReservaRequest pessoaRequest : pessoas) {
-            salvarReservaPessoa(reserva, pessoaRequest);
         }
     }
 

@@ -30,6 +30,14 @@ public class AlocacaoPosicaoService {
             return ResultadoAlocacao.falha("Não há posições livres na data solicitada.");
         }
 
+        if (posicoesLivres.size() < pessoas.size()) {
+            return ResultadoAlocacao.falha(String.format(
+                    "Não há posições livres suficientes na data solicitada. "
+                            + "Necessárias: %d, disponíveis: %d.",
+                    pessoas.size(),
+                    posicoesLivres.size()));
+        }
+
         if (CriterioProximidade.isObrigatoria(criterioProximidade)) {
             return alocarComProximidadeObrigatoria(pessoas, posicoesLivres, raioProximidade);
         }

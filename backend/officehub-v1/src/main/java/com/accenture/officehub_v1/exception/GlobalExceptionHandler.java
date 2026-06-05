@@ -23,6 +23,11 @@ public class GlobalExceptionHandler {
         return resposta(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
+    @ExceptionHandler(ConflitoAlocacaoException.class)
+    public ResponseEntity<Map<String, Object>> handleConflitoAlocacao(ConflitoAlocacaoException ex) {
+        return resposta(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<Map<String, Object>> handleCredenciaisInvalidas(CredenciaisInvalidasException ex) {
         return resposta(HttpStatus.UNAUTHORIZED, ex.getMessage());

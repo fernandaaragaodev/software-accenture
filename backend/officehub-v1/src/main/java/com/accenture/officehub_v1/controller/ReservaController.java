@@ -4,9 +4,14 @@ import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
-import com.accenture.officehub_v1.entity.enums.StatusReserva;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.ReservaService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,19 +30,27 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/reservas")
 @RequiredArgsConstructor
+@Tag(name = "Reservas", description = "Solicitação e gestão de reservas de salas")
 public class ReservaController {
 
     private final ReservaService reservaService;
 
     @PostMapping
+    @Operation(
+            summary = "Solicitar reserva",
+            description = """
+                    Cria uma reserva confirmada após o Agente de Alocação (IA algorítmica) \
+                    validar posições livres, tipos compatíveis e proximidade. \
+                    Em falha de alocação retorna HTTP 409 sem persistir a reserva.""")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Reserva confirmada com posições alocadas",
+                    content = @Content(schema = @Schema(implementation = ReservaResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Falha do agente de alocação — reserva não criada"),
+            @ApiResponse(responseCode = "422", description = "Regra de negócio violada")
+    })
     public ResponseEntity<ReservaResponse> solicitar(@Valid @RequestBody SolicitarReservaRequest request) {
         UUID solicitanteId = SecurityUtils.getUsuarioIdAtual();
         ReservaResponse response = reservaService.solicitarReserva(request, solicitanteId);
-
-        if (response.status() == StatusReserva.REJEITADA) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
-        }
-
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

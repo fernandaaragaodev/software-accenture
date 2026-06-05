@@ -76,6 +76,8 @@ public class SecurityConfig {
                         .hasAuthority(Roles.GESTOR_RESERVAS)
                         .requestMatchers("/api/v1/equipes/**")
                         .hasAnyAuthority(Roles.GESTOR_RESERVAS, Roles.ADMIN_SALA)
+                        .requestMatchers("/api/v1/ia/**")
+                        .hasAuthority(Roles.ADMIN_SALA)
                         .requestMatchers(
                                 "/api/v1/salas/**",
                                 "/api/v1/posicoes/**",
