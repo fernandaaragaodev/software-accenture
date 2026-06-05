@@ -1,8 +1,10 @@
 package com.accenture.officehub_v1.security;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
 import java.util.UUID;
 
 public final class SecurityUtils {
@@ -24,5 +26,11 @@ public final class SecurityUtils {
 
     public static String getEmailAtual() {
         return getUsuarioAutenticado().getUsername();
+    }
+
+    public static List<String> getPerfisAtuais() {
+        return getUsuarioAutenticado().getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
     }
 }

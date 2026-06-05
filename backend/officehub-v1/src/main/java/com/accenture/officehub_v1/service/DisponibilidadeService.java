@@ -3,18 +3,25 @@ package com.accenture.officehub_v1.service;
 import com.accenture.officehub_v1.dto.request.CriarRegraDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.ExcecaoDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.HorarioDisponibilidadeRequest;
+import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
+import com.accenture.officehub_v1.dto.response.PosicaoLayoutDisponibilidadeResponse;
+import com.accenture.officehub_v1.dto.response.PosicaoOcupadaResponse;
 import com.accenture.officehub_v1.dto.response.RegraDisponibilidadeResponse;
 import com.accenture.officehub_v1.dto.response.ValidacaoDisponibilidadeResponse;
 import com.accenture.officehub_v1.entity.ExcecaoDisponibilidade;
+import com.accenture.officehub_v1.entity.Posicao;
 import com.accenture.officehub_v1.entity.HorarioDisponibilidade;
 import com.accenture.officehub_v1.entity.RegraDisponibilidade;
 import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.Usuario;
+import com.accenture.officehub_v1.entity.enums.StatusReserva;
+import com.accenture.officehub_v1.entity.enums.StatusSala;
 import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.ExcecaoDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.HorarioDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.RegraDisponibilidadeRepository;
+import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -22,20 +29,28 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DisponibilidadeService {
 
+    private static final Set<StatusReserva> STATUS_OCUPAM_POSICAO =
+            EnumSet.of(StatusReserva.PENDENTE, StatusReserva.CONFIRMADA);
+
     private final RegraDisponibilidadeRepository regraDisponibilidadeRepository;
     private final HorarioDisponibilidadeRepository horarioDisponibilidadeRepository;
     private final ExcecaoDisponibilidadeRepository excecaoDisponibilidadeRepository;
     private final SalaService salaService;
+    private final PosicaoService posicaoService;
+    private final ReservaPosicaoRepository reservaPosicaoRepository;
     private final UsuarioRepository usuarioRepository;
     private final AuditService auditService;
 
@@ -97,8 +112,75 @@ public class DisponibilidadeService {
     }
 
     public ValidacaoDisponibilidadeResponse validarReservaPermitida(UUID salaId, LocalDate data) {
-        salaService.buscarEntidadeAtiva(salaId);
+        ConsultaDisponibilidadeResponse consulta = consultarDisponibilidade(salaId, data);
+        return new ValidacaoDisponibilidadeResponse(
+                consulta.salaId(),
+                consulta.data(),
+                consulta.disponivelParaReserva(),
+                consulta.mensagemRegras());
+    }
 
+    /**
+     * RF-35 / fluxo 7.4 — calendário de disponibilidade com layout e ocupação por data.
+     */
+    public ConsultaDisponibilidadeResponse consultarDisponibilidade(UUID salaId, LocalDate data) {
+        Sala sala = salaService.buscarEntidadeAtiva(salaId);
+        ValidacaoDisponibilidadeResponse regras = validarRegrasDisponibilidade(salaId, data);
+
+        List<Posicao> todasPosicoes = posicaoService.listarPosicoesDaSala(salaId);
+        List<UUID> posicoesOcupadasIds = reservaPosicaoRepository.findPosicaoIdsOcupadas(
+                salaId, data, STATUS_OCUPAM_POSICAO);
+
+        int totalInativas = 0;
+        int totalLivres = 0;
+        int totalOcupadas = 0;
+
+        List<PosicaoLayoutDisponibilidadeResponse> layout = new java.util.ArrayList<>();
+        List<PosicaoOcupadaResponse> ocupadas = new java.util.ArrayList<>();
+
+        for (Posicao posicao : todasPosicoes) {
+            String situacao = resolverSituacao(posicao, posicoesOcupadasIds);
+            layout.add(PosicaoLayoutDisponibilidadeResponse.from(posicao, situacao));
+
+            switch (situacao) {
+                case PosicaoStatus.INATIVA -> totalInativas++;
+                case PosicaoStatus.OCUPADA -> {
+                    totalOcupadas++;
+                    ocupadas.add(PosicaoOcupadaResponse.from(posicao));
+                }
+                case PosicaoStatus.LIVRE -> totalLivres++;
+                default -> {
+                }
+            }
+        }
+
+        Map<String, Long> livresPorTipo = todasPosicoes.stream()
+                .filter(p -> PosicaoStatus.LIVRE.equals(resolverSituacao(p, posicoesOcupadasIds)))
+                .collect(Collectors.groupingBy(
+                        p -> p.getTipo() != null && !p.getTipo().isBlank() ? p.getTipo() : "SEM_TIPO",
+                        Collectors.counting()));
+
+        boolean salaAtiva = sala.getStatus() == StatusSala.ATIVA;
+        boolean disponivel = salaAtiva && regras.disponivel();
+
+        String mensagem = montarMensagemConsulta(sala, regras);
+
+        return new ConsultaDisponibilidadeResponse(
+                salaId,
+                data,
+                sala.getStatus(),
+                disponivel,
+                mensagem,
+                todasPosicoes.size(),
+                totalLivres,
+                totalOcupadas,
+                totalInativas,
+                livresPorTipo,
+                ocupadas,
+                layout);
+    }
+
+    private ValidacaoDisponibilidadeResponse validarRegrasDisponibilidade(UUID salaId, LocalDate data) {
         try {
             validarDisponibilidade(salaId, data);
             return new ValidacaoDisponibilidadeResponse(salaId, data, true,
@@ -106,6 +188,26 @@ public class DisponibilidadeService {
         } catch (RegraNegocioException ex) {
             return new ValidacaoDisponibilidadeResponse(salaId, data, false, ex.getMessage());
         }
+    }
+
+    private String montarMensagemConsulta(Sala sala, ValidacaoDisponibilidadeResponse regras) {
+        if (sala.getStatus() != StatusSala.ATIVA) {
+            return "A sala não está ativa para reservas.";
+        }
+        return regras.mensagem();
+    }
+
+    private String resolverSituacao(Posicao posicao, List<UUID> posicoesOcupadasIds) {
+        if (posicao.getDeletedAt() != null
+                || PosicaoStatus.INATIVA.equalsIgnoreCase(posicao.getStatus())) {
+            return PosicaoStatus.INATIVA;
+        }
+
+        if (posicoesOcupadasIds.contains(posicao.getId())) {
+            return PosicaoStatus.OCUPADA;
+        }
+
+        return PosicaoStatus.LIVRE;
     }
 
     public void validarDisponibilidade(UUID salaId, LocalDate data) {

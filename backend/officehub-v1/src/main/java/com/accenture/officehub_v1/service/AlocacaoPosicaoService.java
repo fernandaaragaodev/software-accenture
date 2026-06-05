@@ -34,13 +34,14 @@ public class AlocacaoPosicaoService {
             return alocarComProximidadeObrigatoria(pessoas, posicoesLivres, raioProximidade);
         }
 
-        return alocarPreferencialOuSimples(pessoas, posicoesLivres, criterioProximidade);
+        return alocarPreferencialOuSimples(pessoas, posicoesLivres, criterioProximidade, raioProximidade);
     }
 
     private ResultadoAlocacao alocarPreferencialOuSimples(
             List<PessoaReservaRequest> pessoas,
             List<Posicao> posicoesLivres,
-            String criterioProximidade) {
+            String criterioProximidade,
+            BigDecimal raioProximidade) {
 
         List<Posicao> disponiveis = ordenarPosicoes(posicoesLivres);
         Set<UUID> usadas = new HashSet<>();
@@ -67,7 +68,30 @@ public class AlocacaoPosicaoService {
             resultado.add(new ItemAlocacao(pessoa, escolhida));
         }
 
-        return ResultadoAlocacao.sucesso(resultado);
+        String aviso = montarAvisoProximidadePreferencial(
+                criterioProximidade, atribuidas, raioProximidade);
+
+        return ResultadoAlocacao.sucesso(resultado, aviso);
+    }
+
+    private String montarAvisoProximidadePreferencial(
+            String criterioProximidade,
+            List<Posicao> atribuidas,
+            BigDecimal raioProximidade) {
+
+        if (!CriterioProximidade.isPreferencial(criterioProximidade)
+                || atribuidas.size() <= 1
+                || raioProximidade == null) {
+            return null;
+        }
+
+        double raio = raioProximidade.doubleValue();
+        if (grupoRespeitaRaio(atribuidas, raio)) {
+            return null;
+        }
+
+        return "As posições foram alocadas, porém nem todas ficaram dentro do raio de proximidade "
+                + "preferencial configurado para a sala.";
     }
 
     private ResultadoAlocacao alocarComProximidadeObrigatoria(

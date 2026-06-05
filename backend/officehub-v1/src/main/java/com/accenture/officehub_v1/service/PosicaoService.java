@@ -97,6 +97,11 @@ public class PosicaoService {
                 .toList();
     }
 
+    public List<Posicao> listarPosicoesDaSala(UUID salaId) {
+        salaService.buscarEntidadeAtiva(salaId);
+        return posicaoRepository.findBySalaIdAndDeletedAtIsNull(salaId);
+    }
+
     private void validarIdentificadorDuplicado(UUID salaId, String identificador, UUID idExcluir) {
         boolean duplicado = idExcluir == null
                 ? posicaoRepository.existsBySalaIdAndIdentificadorIgnoreCaseAndDeletedAtIsNull(salaId, identificador)

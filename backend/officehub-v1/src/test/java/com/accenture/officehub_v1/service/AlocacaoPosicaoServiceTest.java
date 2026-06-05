@@ -96,6 +96,22 @@ class AlocacaoPosicaoServiceTest {
     }
 
     @Test
+    void deveInformarAvisoQuandoProximidadePreferencialNaoAtendida() {
+        List<Posicao> livres = List.of(
+                posicao("P-01", "Estação Padrão", 0, 0),
+                posicao("P-02", "Estação Padrão", 10, 0));
+
+        var resultado = service.alocar(
+                List.of(pessoa("Estação Padrão", null, null), pessoa("Estação Padrão", null, null)),
+                livres,
+                CriterioProximidade.PREFERENCIAL,
+                BigDecimal.valueOf(3));
+
+        assertThat(resultado.sucesso()).isTrue();
+        assertThat(resultado.avisoProximidade()).contains("raio de proximidade preferencial");
+    }
+
+    @Test
     void deveCalcularDistanciaEuclidiana() {
         Posicao a = posicao("A", "Tipo", 0, 0);
         Posicao b = posicao("B", "Tipo", 3, 4);

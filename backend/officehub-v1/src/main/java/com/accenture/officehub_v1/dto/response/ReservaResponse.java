@@ -17,14 +17,19 @@ public record ReservaResponse(
         String criterioProximidade,
         StatusReserva status,
         String motivoRejeicao,
+        String avisoProximidade,
         List<ReservaPosicaoAlocadaResponse> alocacoes
 ) {
 
     public static ReservaResponse from(Reserva reserva) {
-        return from(reserva, List.of());
+        return from(reserva, List.of(), null);
     }
 
     public static ReservaResponse from(Reserva reserva, List<ItemAlocacao> alocacoes) {
+        return from(reserva, alocacoes, null);
+    }
+
+    public static ReservaResponse from(Reserva reserva, List<ItemAlocacao> alocacoes, String avisoProximidade) {
         List<ReservaPosicaoAlocadaResponse> alocacoesResponse = alocacoes.stream()
                 .map(ReservaPosicaoAlocadaResponse::from)
                 .toList();
@@ -38,6 +43,7 @@ public record ReservaResponse(
                 reserva.getCriterioProximidade(),
                 reserva.getStatus(),
                 reserva.getMotivoRejeicao(),
+                avisoProximidade,
                 alocacoesResponse
         );
     }

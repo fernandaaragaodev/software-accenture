@@ -2,8 +2,8 @@ package com.accenture.officehub_v1.controller;
 
 import com.accenture.officehub_v1.dto.request.CriarRegraDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.ExcecaoDisponibilidadeRequest;
+import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
 import com.accenture.officehub_v1.dto.response.RegraDisponibilidadeResponse;
-import com.accenture.officehub_v1.dto.response.ValidacaoDisponibilidadeResponse;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.DisponibilidadeService;
 import jakarta.validation.Valid;
@@ -43,10 +43,10 @@ public class DisponibilidadeController {
     }
 
     @GetMapping("/disponibilidade")
-    public ResponseEntity<ValidacaoDisponibilidadeResponse> consultarDisponibilidade(
+    public ResponseEntity<ConsultaDisponibilidadeResponse> consultarDisponibilidade(
             @PathVariable UUID salaId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return ResponseEntity.ok(disponibilidadeService.validarReservaPermitida(salaId, data));
+        return ResponseEntity.ok(disponibilidadeService.consultarDisponibilidade(salaId, data));
     }
 
     @PostMapping("/excecoes-disponibilidade")

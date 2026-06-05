@@ -43,26 +43,32 @@ public class ReservaController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ReservaResponse> buscarPorId(@PathVariable UUID id) {
-        return ResponseEntity.ok(reservaService.buscarPorId(id));
+        return ResponseEntity.ok(reservaService.buscarPorId(
+                id, SecurityUtils.getUsuarioIdAtual(), SecurityUtils.getPerfisAtuais()));
     }
 
     @PatchMapping("/{id}/confirmar")
     public ResponseEntity<ReservaResponse> confirmar(@PathVariable UUID id) {
-        return ResponseEntity.ok(reservaService.confirmarReserva(id));
+        return ResponseEntity.ok(reservaService.confirmarReserva(
+                id, SecurityUtils.getUsuarioIdAtual(), SecurityUtils.getPerfisAtuais()));
     }
 
     @PatchMapping("/{id}/rejeitar")
     public ResponseEntity<ReservaResponse> rejeitar(
             @PathVariable UUID id,
             @Valid @RequestBody RejeitarReservaRequest request) {
-        return ResponseEntity.ok(reservaService.rejeitarReserva(id, request.motivo()));
+        return ResponseEntity.ok(reservaService.rejeitarReserva(
+                id, request.motivo(), SecurityUtils.getUsuarioIdAtual(), SecurityUtils.getPerfisAtuais()));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ReservaResponse> cancelar(
             @PathVariable UUID id,
             @Valid @RequestBody CancelarReservaRequest request) {
-        UUID canceladoPorId = SecurityUtils.getUsuarioIdAtual();
-        return ResponseEntity.ok(reservaService.cancelarReserva(id, request, canceladoPorId));
+        return ResponseEntity.ok(reservaService.cancelarReserva(
+                id,
+                request,
+                SecurityUtils.getUsuarioIdAtual(),
+                SecurityUtils.getPerfisAtuais()));
     }
 }

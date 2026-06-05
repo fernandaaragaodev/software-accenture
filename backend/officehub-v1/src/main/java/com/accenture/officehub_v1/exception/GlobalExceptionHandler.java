@@ -28,6 +28,11 @@ public class GlobalExceptionHandler {
         return resposta(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
+    @ExceptionHandler(AcessoNegadoException.class)
+    public ResponseEntity<Map<String, Object>> handleAcessoNegado(AcessoNegadoException ex) {
+        return resposta(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidacao(MethodArgumentNotValidException ex) {
         String mensagem = ex.getBindingResult().getFieldErrors().stream()

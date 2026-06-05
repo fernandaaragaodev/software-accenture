@@ -11,6 +11,7 @@ import com.accenture.officehub_v1.entity.ReservaPosicao;
 import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.Usuario;
 import com.accenture.officehub_v1.entity.enums.StatusReserva;
+import com.accenture.officehub_v1.exception.AcessoNegadoException;
 import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -48,6 +50,7 @@ public class ReservaService {
     private final NotificacaoService notificacaoService;
     private final AlocacaoPosicaoService alocacaoPosicaoService;
     private final AuditService auditService;
+    private final ReservaAutorizacaoService reservaAutorizacaoService;
 
     @Transactional
     public ReservaResponse solicitarReserva(SolicitarReservaRequest request, UUID solicitanteId) {
@@ -70,8 +73,8 @@ public class ReservaService {
                         "Solicitante da reserva não encontrado."));
 
         if (resultado.sucesso()) {
-            ReservaResponse response =
-                    persistirReservaConfirmada(request, sala, solicitante, resultado.alocacoes());
+            ReservaResponse response = persistirReservaConfirmada(
+                    request, sala, solicitante, resultado.alocacoes(), resultado.avisoProximidade());
             auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
             return response;
         }
@@ -83,8 +86,13 @@ public class ReservaService {
     }
 
     @Transactional
-    public ReservaResponse cancelarReserva(UUID id, CancelarReservaRequest request, UUID canceladoPorId) {
+    public ReservaResponse cancelarReserva(
+            UUID id,
+            CancelarReservaRequest request,
+            UUID canceladoPorId,
+            Collection<String> perfis) {
         Reserva reserva = buscarEntidadeAtiva(id);
+        validarPermissaoGerenciarReserva(reserva, canceladoPorId, perfis);
 
         if (reserva.getStatus() == StatusReserva.CANCELADA) {
             throw new RegraNegocioException("Esta reserva já foi cancelada.");
@@ -107,8 +115,9 @@ public class ReservaService {
     }
 
     @Transactional
-    public ReservaResponse confirmarReserva(UUID id) {
+    public ReservaResponse confirmarReserva(UUID id, UUID usuarioId, Collection<String> perfis) {
         Reserva reserva = buscarEntidadeAtiva(id);
+        validarPermissaoGerenciarReserva(reserva, usuarioId, perfis);
 
         if (reserva.getStatus() != StatusReserva.PENDENTE) {
             throw new RegraNegocioException(
@@ -122,8 +131,9 @@ public class ReservaService {
     }
 
     @Transactional
-    public ReservaResponse rejeitarReserva(UUID id, String motivoRejeicao) {
+    public ReservaResponse rejeitarReserva(UUID id, String motivoRejeicao, UUID usuarioId, Collection<String> perfis) {
         Reserva reserva = buscarEntidadeAtiva(id);
+        validarPermissaoGerenciarReserva(reserva, usuarioId, perfis);
 
         if (reserva.getStatus() != StatusReserva.PENDENTE) {
             throw new RegraNegocioException(
@@ -137,8 +147,10 @@ public class ReservaService {
         return ReservaResponse.from(reserva);
     }
 
-    public ReservaResponse buscarPorId(UUID id) {
-        return ReservaResponse.from(buscarEntidadeAtiva(id));
+    public ReservaResponse buscarPorId(UUID id, UUID usuarioId, Collection<String> perfis) {
+        Reserva reserva = buscarEntidadeAtiva(id);
+        validarPermissaoGerenciarReserva(reserva, usuarioId, perfis);
+        return ReservaResponse.from(reserva);
     }
 
     public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data) {
@@ -171,7 +183,8 @@ public class ReservaService {
             SolicitarReservaRequest request,
             Sala sala,
             Usuario solicitante,
-            List<ItemAlocacao> alocacoes) {
+            List<ItemAlocacao> alocacoes,
+            String avisoProximidade) {
 
         Reserva reserva = reservaRepository.save(Reserva.builder()
                 .sala(sala)
@@ -184,7 +197,7 @@ public class ReservaService {
 
         persistirPessoasEPosicoes(reserva, alocacoes);
         notificacaoService.notificarConfirmacaoReserva(reserva);
-        return ReservaResponse.from(reserva, alocacoes);
+        return ReservaResponse.from(reserva, alocacoes, avisoProximidade);
     }
 
     private ReservaResponse persistirReservaRejeitada(
@@ -273,6 +286,13 @@ public class ReservaService {
         if (!CriterioProximidade.isObrigatoria(criterio) && !CriterioProximidade.isPreferencial(criterio)) {
             throw new RegraNegocioException(
                     "Critério de proximidade inválido. Use OBRIGATORIA ou PREFERENCIAL.");
+        }
+    }
+
+    private void validarPermissaoGerenciarReserva(Reserva reserva, UUID usuarioId, Collection<String> perfis) {
+        if (!reservaAutorizacaoService.podeGerenciarReserva(usuarioId, perfis, reserva)) {
+            throw new AcessoNegadoException(
+                    "Você não tem permissão para gerenciar esta reserva.");
         }
     }
 }

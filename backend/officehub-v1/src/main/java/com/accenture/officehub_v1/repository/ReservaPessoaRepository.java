@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.UUID;
 
 public interface ReservaPessoaRepository extends JpaRepository<ReservaPessoa, UUID> {
+
+    boolean existsByReservaIdAndUsuario_Gestor_IdAndUsuario_DeletedAtIsNull(UUID reservaId, UUID gestorId);
 }

@@ -1,6 +1,7 @@
 package com.accenture.officehub_v1.security;
 
-import com.accenture.officehub_v1.dto.response.ValidacaoDisponibilidadeResponse;
+import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
+import com.accenture.officehub_v1.entity.enums.StatusSala;
 import com.accenture.officehub_v1.service.DisponibilidadeService;
 import com.accenture.officehub_v1.service.ReservaService;
 import com.accenture.officehub_v1.service.SalaService;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,8 +53,20 @@ class RbacAuthorizationTest {
 
   @BeforeEach
   void configurarDisponibilidade() {
-    when(disponibilidadeService.validarReservaPermitida(eq(SALA_ID), eq(LocalDate.of(2026, 6, 4))))
-        .thenReturn(new ValidacaoDisponibilidadeResponse(SALA_ID, LocalDate.of(2026, 6, 4), true, "OK"));
+    when(disponibilidadeService.consultarDisponibilidade(eq(SALA_ID), eq(LocalDate.of(2026, 6, 4))))
+        .thenReturn(new ConsultaDisponibilidadeResponse(
+            SALA_ID,
+            LocalDate.of(2026, 6, 4),
+            StatusSala.ATIVA,
+            true,
+            "OK",
+            0,
+            0,
+            0,
+            0,
+            Map.of(),
+            List.of(),
+            List.of()));
   }
 
   @Test
@@ -166,7 +180,9 @@ class RbacAuthorizationTest {
   @Test
   @WithMockUser(authorities = Roles.GESTOR_RESERVAS)
   void confirmarReserva_gestor_permitido() throws Exception {
-    when(reservaService.confirmarReserva(SALA_ID)).thenReturn(null);
+    when(reservaService.confirmarReserva(
+            eq(SALA_ID), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(null);
 
     mockMvc.perform(patch("/api/v1/reservas/{id}/confirmar", SALA_ID))
         .andExpect(status().isOk());
