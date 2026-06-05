@@ -5,8 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,16 +15,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "usuarios")
+@Table(name = "equipes")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Usuario {
+public class Equipe {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -34,18 +36,8 @@ public class Usuario {
     @Column(name = "nome", nullable = false)
     private String nome;
 
-    @NotBlank
-    @Email
-    @Column(name = "email", nullable = false, unique = true)
-    private String email;
-
-    @NotBlank
-    @Column(name = "senha_hash", nullable = false)
-    private String senhaHash;
-
-    @Column(name = "ativo")
-    @Builder.Default
-    private Boolean ativo = true;
+    @Column(name = "descricao", columnDefinition = "text")
+    private String descricao;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -55,4 +47,12 @@ public class Usuario {
 
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
+
+    @OneToMany(mappedBy = "equipe")
+    @Builder.Default
+    private List<EquipeGestor> gestores = new ArrayList<>();
+
+    @OneToMany(mappedBy = "equipe")
+    @Builder.Default
+    private List<EquipeMembro> membros = new ArrayList<>();
 }

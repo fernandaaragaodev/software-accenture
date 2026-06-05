@@ -72,14 +72,11 @@ public class AuthService {
             throw new RegraNegocioException("Já existe um usuário cadastrado com este e-mail.");
         }
 
-        Usuario gestor = resolverGestor(request.gestorId());
-
         Usuario usuario = Usuario.builder()
                 .nome(request.nome())
                 .email(request.email().trim().toLowerCase())
                 .senhaHash(passwordEncoder.encode(request.senha()))
                 .ativo(true)
-                .gestor(gestor)
                 .build();
 
         usuario = usuarioRepository.save(usuario);
@@ -98,25 +95,6 @@ public class AuthService {
         List<String> perfis = List.of(perfil.getNome());
         auditService.registrar(usuario.getId(), "REGISTER", "Usuario", usuario.getId());
         return UsuarioResponse.from(usuario, perfis);
-    }
-
-    private Usuario resolverGestor(UUID gestorId) {
-        if (gestorId == null) {
-            return null;
-        }
-
-        Usuario gestor = usuarioRepository.findByIdAndDeletedAtIsNull(gestorId)
-                .orElseThrow(() -> new RegraNegocioException("Gestor informado não encontrado."));
-
-        boolean possuiPerfilGestor = usuarioPerfilRepository.findByUsuarioId(gestorId).stream()
-                .anyMatch(up -> Roles.GESTOR_RESERVAS.equalsIgnoreCase(up.getPerfil().getNome()));
-
-        if (!possuiPerfilGestor) {
-            throw new RegraNegocioException(
-                    "O gestor informado deve possuir o perfil GESTOR_RESERVAS.");
-        }
-
-        return gestor;
     }
 
     private LoginResponse emitirTokens(Usuario usuario) {

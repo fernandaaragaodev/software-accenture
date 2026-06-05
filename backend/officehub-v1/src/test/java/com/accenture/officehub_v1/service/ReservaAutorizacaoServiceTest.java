@@ -2,8 +2,8 @@ package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.entity.Reserva;
 import com.accenture.officehub_v1.entity.Usuario;
+import com.accenture.officehub_v1.repository.EquipeMembroRepository;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
-import com.accenture.officehub_v1.repository.UsuarioRepository;
 import com.accenture.officehub_v1.security.Roles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,7 +12,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,7 +25,7 @@ class ReservaAutorizacaoServiceTest {
     private static final UUID OUTRO_ID = UUID.fromString("30000000-0000-0000-0000-000000000003");
 
     @Mock
-    private UsuarioRepository usuarioRepository;
+    private EquipeMembroRepository equipeMembroRepository;
 
     @Mock
     private ReservaPessoaRepository reservaPessoaRepository;
@@ -45,8 +44,8 @@ class ReservaAutorizacaoServiceTest {
     @Test
     void gestorPodeGerenciarReservaDaEquipe() {
         Reserva reserva = reservaComSolicitante(MEMBRO_ID);
-        when(usuarioRepository.findByIdAndDeletedAtIsNull(MEMBRO_ID))
-                .thenReturn(Optional.of(usuarioComGestor(MEMBRO_ID, GESTOR_ID)));
+        when(equipeMembroRepository.existsMembroNaEquipeDoGestor(MEMBRO_ID, GESTOR_ID))
+                .thenReturn(true);
 
         assertThat(reservaAutorizacaoService.podeGerenciarReserva(
                 GESTOR_ID, List.of(Roles.GESTOR_RESERVAS), reserva)).isTrue();
@@ -65,10 +64,10 @@ class ReservaAutorizacaoServiceTest {
         Reserva reserva = reservaComSolicitante(OUTRO_ID);
         UUID reservaId = reserva.getId();
 
-        when(usuarioRepository.findByIdAndDeletedAtIsNull(OUTRO_ID))
-                .thenReturn(Optional.of(usuarioSemGestor(OUTRO_ID)));
-        when(reservaPessoaRepository.existsByReservaIdAndUsuario_Gestor_IdAndUsuario_DeletedAtIsNull(
-                reservaId, GESTOR_ID)).thenReturn(false);
+        when(equipeMembroRepository.existsMembroNaEquipeDoGestor(OUTRO_ID, GESTOR_ID))
+                .thenReturn(false);
+        when(reservaPessoaRepository.existsParticipanteNaEquipeDoGestor(reservaId, GESTOR_ID))
+                .thenReturn(false);
 
         assertThat(reservaAutorizacaoService.podeGerenciarReserva(
                 GESTOR_ID, List.of(Roles.GESTOR_RESERVAS), reserva)).isFalse();
@@ -80,16 +79,5 @@ class ReservaAutorizacaoServiceTest {
                 .id(UUID.randomUUID())
                 .solicitante(solicitante)
                 .build();
-    }
-
-    private Usuario usuarioComGestor(UUID id, UUID gestorId) {
-        return Usuario.builder()
-                .id(id)
-                .gestor(Usuario.builder().id(gestorId).build())
-                .build();
-    }
-
-    private Usuario usuarioSemGestor(UUID id) {
-        return Usuario.builder().id(id).build();
     }
 }

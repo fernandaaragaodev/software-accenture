@@ -3,6 +3,7 @@ package com.accenture.officehub_v1.security;
 import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
 import com.accenture.officehub_v1.entity.enums.StatusSala;
 import com.accenture.officehub_v1.service.DisponibilidadeService;
+import com.accenture.officehub_v1.service.EquipeService;
 import com.accenture.officehub_v1.service.ReservaService;
 import com.accenture.officehub_v1.service.SalaService;
 import com.accenture.officehub_v1.service.TipoEquipamentoService;
@@ -50,6 +51,9 @@ class RbacAuthorizationTest {
 
   @MockitoBean
   private TipoEquipamentoService tipoEquipamentoService;
+
+  @MockitoBean
+  private EquipeService equipeService;
 
   @BeforeEach
   void configurarDisponibilidade() {
@@ -175,6 +179,23 @@ class RbacAuthorizationTest {
   void confirmarReserva_usuarioFinal_retorna403() throws Exception {
     mockMvc.perform(post("/api/v1/reservas/{id}/confirmar", SALA_ID))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.USUARIO_FINAL)
+  void listarEquipes_usuarioFinal_retorna403() throws Exception {
+    mockMvc.perform(get("/api/v1/equipes"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.GESTOR_RESERVAS)
+  void listarEquipes_gestor_permitido() throws Exception {
+    when(equipeService.listar(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of());
+
+    mockMvc.perform(get("/api/v1/equipes"))
+        .andExpect(status().isOk());
   }
 
   @Test

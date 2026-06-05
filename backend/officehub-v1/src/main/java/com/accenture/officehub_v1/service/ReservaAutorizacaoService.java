@@ -1,9 +1,8 @@
 package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.entity.Reserva;
-import com.accenture.officehub_v1.entity.Usuario;
+import com.accenture.officehub_v1.repository.EquipeMembroRepository;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
-import com.accenture.officehub_v1.repository.UsuarioRepository;
 import com.accenture.officehub_v1.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +14,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ReservaAutorizacaoService {
 
-    private final UsuarioRepository usuarioRepository;
+    private final EquipeMembroRepository equipeMembroRepository;
     private final ReservaPessoaRepository reservaPessoaRepository;
 
     public boolean podeGerenciarReserva(UUID usuarioId, Collection<String> perfis, Reserva reserva) {
@@ -35,10 +34,7 @@ public class ReservaAutorizacaoService {
             return true;
         }
 
-        return usuarioRepository.findByIdAndDeletedAtIsNull(membroId)
-                .map(Usuario::getGestor)
-                .map(gestor -> gestor.getId().equals(gestorId))
-                .orElse(false);
+        return equipeMembroRepository.existsMembroNaEquipeDoGestor(membroId, gestorId);
     }
 
     private boolean reservaPertenceEquipe(UUID gestorId, Reserva reserva) {
@@ -46,7 +42,6 @@ public class ReservaAutorizacaoService {
             return true;
         }
 
-        return reservaPessoaRepository.existsByReservaIdAndUsuario_Gestor_IdAndUsuario_DeletedAtIsNull(
-                reserva.getId(), gestorId);
+        return reservaPessoaRepository.existsParticipanteNaEquipeDoGestor(reserva.getId(), gestorId);
     }
 }
