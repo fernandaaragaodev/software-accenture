@@ -16,4 +16,8 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID> {
 
     List<Reserva> findBySalaIdAndDataReservaAndDeletedAtIsNullAndStatusIn(
             UUID salaId, LocalDate dataReserva, Collection<StatusReserva> statuses);
+
+    long countByDeletedAtIsNull();
+
+    long countByDeletedAtIsNullAndStatus(StatusReserva status);
 }

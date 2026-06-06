@@ -11,4 +11,8 @@ public interface PosicaoEquipamentoRepository extends JpaRepository<PosicaoEquip
     List<PosicaoEquipamento> findByPosicaoIdOrderByCreatedAtAsc(UUID posicaoId);
 
     boolean existsByPosicaoIdAndTipoEquipamentoId(UUID posicaoId, UUID tipoEquipamentoId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT COALESCE(SUM(pe.quantidade), 0) FROM PosicaoEquipamento pe")
+    long somarQuantidadeTotal();
 }

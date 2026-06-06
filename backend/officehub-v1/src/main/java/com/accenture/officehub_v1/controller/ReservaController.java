@@ -50,7 +50,10 @@ public class ReservaController {
     })
     public ResponseEntity<ReservaResponse> solicitar(@Valid @RequestBody SolicitarReservaRequest request) {
         UUID solicitanteId = SecurityUtils.getUsuarioIdAtual();
-        ReservaResponse response = reservaService.solicitarReserva(request, solicitanteId);
+        ReservaResponse response = reservaService.solicitarReserva(
+                request,
+                solicitanteId,
+                SecurityUtils.getPerfisAtuais());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

@@ -20,7 +20,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -81,20 +84,42 @@ public class AuthService {
 
         usuario = usuarioRepository.save(usuario);
 
-        Perfil perfil = perfilRepository.findByNomeIgnoreCase(Roles.USUARIO_FINAL)
-                .orElseThrow(() -> new RegraNegocioException(
-                        "Perfil padrão USUARIO_FINAL não encontrado no banco."));
-
-        UsuarioPerfil usuarioPerfil = UsuarioPerfil.builder()
-                .id(new UsuarioPerfilId(usuario.getId(), perfil.getId()))
-                .usuario(usuario)
-                .perfil(perfil)
-                .build();
-        usuarioPerfilRepository.save(usuarioPerfil);
-
-        List<String> perfis = List.of(perfil.getNome());
+        List<String> perfisAtribuidos = atribuirPerfis(usuario, request.perfis());
         auditService.registrar(usuario.getId(), "REGISTER", "Usuario", usuario.getId());
-        return UsuarioResponse.from(usuario, perfis);
+        return UsuarioResponse.from(usuario, perfisAtribuidos);
+    }
+
+    private List<String> atribuirPerfis(Usuario usuario, List<String> perfisSolicitados) {
+        Set<String> nomesPerfis = new LinkedHashSet<>();
+        if (perfisSolicitados == null || perfisSolicitados.isEmpty()) {
+            nomesPerfis.add(Roles.USUARIO_FINAL);
+        } else {
+            for (String perfilNome : perfisSolicitados) {
+                if (!Roles.USUARIO_FINAL.equalsIgnoreCase(perfilNome)
+                        && !Roles.GESTOR_RESERVAS.equalsIgnoreCase(perfilNome)) {
+                    throw new RegraNegocioException(
+                            "Perfis permitidos na criação: USUARIO_FINAL e GESTOR_RESERVAS.");
+                }
+                nomesPerfis.add(perfilNome.toUpperCase());
+            }
+        }
+
+        List<String> perfisAtribuidos = new ArrayList<>();
+        for (String nomePerfil : nomesPerfis) {
+            Perfil perfil = perfilRepository.findByNomeIgnoreCase(nomePerfil)
+                    .orElseThrow(() -> new RegraNegocioException(
+                            "Perfil " + nomePerfil + " não encontrado no banco."));
+
+            UsuarioPerfil usuarioPerfil = UsuarioPerfil.builder()
+                    .id(new UsuarioPerfilId(usuario.getId(), perfil.getId()))
+                    .usuario(usuario)
+                    .perfil(perfil)
+                    .build();
+            usuarioPerfilRepository.save(usuarioPerfil);
+            perfisAtribuidos.add(perfil.getNome());
+        }
+
+        return perfisAtribuidos;
     }
 
     private LoginResponse emitirTokens(Usuario usuario) {

@@ -17,4 +17,10 @@ public interface PosicaoRepository extends JpaRepository<Posicao, UUID> {
 
     boolean existsBySalaIdAndIdentificadorIgnoreCaseAndDeletedAtIsNullAndIdNot(
             UUID salaId, String identificador, UUID id);
+
+    List<Posicao> findBySalaIdOrderByIdentificadorAsc(UUID salaId);
+
+    long countByDeletedAtIsNull();
+
+    long countByDeletedAtIsNullAndStatusIgnoreCase(String status);
 }

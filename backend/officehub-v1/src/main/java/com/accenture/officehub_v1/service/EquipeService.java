@@ -54,6 +54,14 @@ public class EquipeService {
                 .build());
 
         vincularGestor(equipe, gestor);
+
+        for (UUID membroId : request.membrosIds()) {
+            if (membroId.equals(gestorId)) {
+                throw new RegraNegocioException("O gestor da equipe não pode ser adicionado como membro.");
+            }
+            adicionarMembroInterno(equipe, membroId);
+        }
+
         auditService.registrar(usuarioId, "CRIAR", "Equipe", equipe.getId());
 
         return EquipeResponse.from(carregarEquipeCompleta(equipe.getId()));
@@ -68,29 +76,7 @@ public class EquipeService {
 
         Equipe equipe = buscarEquipeAtiva(equipeId);
         validarPermissaoNaEquipe(equipeId, usuarioId, perfis);
-
-        Usuario membro = buscarUsuarioAtivo(request.usuarioId());
-
-        if (equipeMembroRepository.existsByEquipeIdAndUsuarioId(equipeId, membro.getId())) {
-            throw new RegraNegocioException("Este funcionário já faz parte da equipe.");
-        }
-
-        if (equipeMembroRepository.existsEmOutraEquipeAtiva(membro.getId(), equipeId)) {
-            throw new RegraNegocioException(
-                    "O funcionário já está vinculado a outra equipe ativa.");
-        }
-
-        if (equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipeId, membro.getId())) {
-            throw new RegraNegocioException("O gestor da equipe não pode ser adicionado como membro.");
-        }
-
-        EquipeMembro vinculo = EquipeMembro.builder()
-                .id(new EquipeMembroId(equipeId, membro.getId()))
-                .equipe(equipe)
-                .usuario(membro)
-                .build();
-
-        equipeMembroRepository.save(vinculo);
+        adicionarMembroInterno(equipe, request.usuarioId());
         auditService.registrar(usuarioId, "ADICIONAR_MEMBRO", "Equipe", equipeId);
 
         return EquipeResponse.from(carregarEquipeCompleta(equipeId));
@@ -172,6 +158,31 @@ public class EquipeService {
         return usuarioRepository.findByIdAndDeletedAtIsNull(usuarioId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Usuário não encontrado."));
+    }
+
+    private void adicionarMembroInterno(Equipe equipe, UUID membroId) {
+        Usuario membro = buscarUsuarioAtivo(membroId);
+
+        if (equipeMembroRepository.existsByEquipeIdAndUsuarioId(equipe.getId(), membro.getId())) {
+            throw new RegraNegocioException("Este funcionário já faz parte da equipe.");
+        }
+
+        if (equipeMembroRepository.existsEmOutraEquipeAtiva(membro.getId(), equipe.getId())) {
+            throw new RegraNegocioException(
+                    "O funcionário já está vinculado a outra equipe ativa.");
+        }
+
+        if (equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipe.getId(), membro.getId())) {
+            throw new RegraNegocioException("O gestor da equipe não pode ser adicionado como membro.");
+        }
+
+        EquipeMembro vinculo = EquipeMembro.builder()
+                .id(new EquipeMembroId(equipe.getId(), membro.getId()))
+                .equipe(equipe)
+                .usuario(membro)
+                .build();
+
+        equipeMembroRepository.save(vinculo);
     }
 
     private void vincularGestor(Equipe equipe, Usuario gestor) {

@@ -2,6 +2,7 @@ package com.accenture.officehub_v1.repository;
 
 import com.accenture.officehub_v1.entity.EquipeMembro;
 import com.accenture.officehub_v1.entity.EquipeMembroId;
+import com.accenture.officehub_v1.entity.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,4 +42,16 @@ public interface EquipeMembroRepository extends JpaRepository<EquipeMembro, Equi
     boolean existsEmOutraEquipeAtiva(
             @Param("usuarioId") UUID usuarioId,
             @Param("equipeId") UUID equipeId);
+
+    @Query("""
+            SELECT DISTINCT u
+            FROM EquipeMembro em
+            JOIN em.usuario u
+            JOIN em.equipe e
+            JOIN e.gestores eg
+            WHERE eg.usuario.id = :gestorId
+              AND e.deletedAt IS NULL
+            ORDER BY u.nome ASC
+            """)
+    List<Usuario> findMembrosPorGestor(@Param("gestorId") UUID gestorId);
 }

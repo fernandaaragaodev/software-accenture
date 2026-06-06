@@ -57,6 +57,11 @@ public class PosicaoController {
         return ResponseEntity.ok(posicaoService.inativar(id));
     }
 
+    @PatchMapping("/api/v1/posicoes/{id}/reativar")
+    public ResponseEntity<PosicaoResponse> reativar(@PathVariable UUID id) {
+        return ResponseEntity.ok(posicaoService.reativar(id));
+    }
+
     @PostMapping("/api/v1/posicoes/{id}/equipamentos")
     public ResponseEntity<PosicaoEquipamentoResponse> vincularEquipamento(
             @PathVariable UUID id,

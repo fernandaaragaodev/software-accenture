@@ -16,4 +16,6 @@ public interface SalaRepository extends JpaRepository<Sala, UUID> {
     boolean existsByNomeIgnoreCaseAndDeletedAtIsNull(String nome);
 
     boolean existsByNomeIgnoreCaseAndDeletedAtIsNullAndIdNot(String nome, UUID id);
+
+    long countByDeletedAtIsNull();
 }

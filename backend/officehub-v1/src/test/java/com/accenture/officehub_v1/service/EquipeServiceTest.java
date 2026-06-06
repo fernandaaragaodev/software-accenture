@@ -70,9 +70,13 @@ class EquipeServiceTest {
                 .thenReturn(List.of(perfilGestor()));
         when(equipeRepository.save(any(Equipe.class))).thenReturn(equipeSalva);
         when(equipeRepository.findByIdAndDeletedAtIsNull(EQUIPE_ID)).thenReturn(Optional.of(equipeSalva));
+        when(usuarioRepository.findByIdAndDeletedAtIsNull(MEMBRO_ID)).thenReturn(Optional.of(usuario(MEMBRO_ID)));
+        when(equipeMembroRepository.existsByEquipeIdAndUsuarioId(EQUIPE_ID, MEMBRO_ID)).thenReturn(false);
+        when(equipeMembroRepository.existsEmOutraEquipeAtiva(MEMBRO_ID, EQUIPE_ID)).thenReturn(false);
+        when(equipeGestorRepository.existsByEquipeIdAndUsuarioId(EQUIPE_ID, MEMBRO_ID)).thenReturn(false);
 
         var response = equipeService.criar(
-                new CriarEquipeRequest("Comercial", "Equipe comercial", null),
+                new CriarEquipeRequest("Comercial", "Equipe comercial", null, List.of(MEMBRO_ID)),
                 GESTOR_ID,
                 List.of(Roles.GESTOR_RESERVAS));
 
@@ -83,7 +87,7 @@ class EquipeServiceTest {
     @Test
     void adminDeveInformarGestorAoCriarEquipe() {
         assertThatThrownBy(() -> equipeService.criar(
-                new CriarEquipeRequest("Comercial", null, null),
+                new CriarEquipeRequest("Comercial", null, null, List.of(MEMBRO_ID)),
                 ADMIN_ID,
                 List.of(Roles.ADMIN_SALA)))
                 .isInstanceOf(RegraNegocioException.class)
@@ -95,7 +99,7 @@ class EquipeServiceTest {
         UUID outroGestor = UUID.randomUUID();
 
         assertThatThrownBy(() -> equipeService.criar(
-                new CriarEquipeRequest("Comercial", null, outroGestor),
+                new CriarEquipeRequest("Comercial", null, outroGestor, List.of(MEMBRO_ID)),
                 GESTOR_ID,
                 List.of(Roles.GESTOR_RESERVAS)))
                 .isInstanceOf(AcessoNegadoException.class);

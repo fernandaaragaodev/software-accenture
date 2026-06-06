@@ -23,6 +23,7 @@ import com.accenture.officehub_v1.repository.ReservaRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
 import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
+import com.accenture.officehub_v1.security.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,11 +57,14 @@ public class ReservaService {
     private final ReservaAutorizacaoService reservaAutorizacaoService;
 
     @Transactional
-    public ReservaResponse solicitarReserva(SolicitarReservaRequest request, UUID solicitanteId) {
+    public ReservaResponse solicitarReserva(
+            SolicitarReservaRequest request,
+            UUID solicitanteId,
+            Collection<String> perfis) {
         Sala sala = validarPreCondicoesReserva(request);
 
         validarQuantidadePessoas(request, sala);
-        validarPessoasInformadas(request);
+        validarPessoasInformadas(request, solicitanteId, perfis);
         validarCriterioProximidade(request.criterioProximidade());
 
         List<Posicao> posicoesLivres = buscarPosicoesLivres(request.salaId(), request.dataReserva());
@@ -245,17 +249,35 @@ public class ReservaService {
         }
     }
 
-    private void validarPessoasInformadas(SolicitarReservaRequest request) {
+    private void validarPessoasInformadas(
+            SolicitarReservaRequest request,
+            UUID solicitanteId,
+            Collection<String> perfis) {
         if (request.pessoas().size() != request.quantidadePessoas()) {
             throw new RegraNegocioException(
                     "A quantidade de pessoas informada não corresponde ao número de participantes cadastrados.");
         }
 
         for (PessoaReservaRequest pessoa : request.pessoas()) {
-            if (pessoa.usuarioId() == null
-                    && (pessoa.nomeExterno() == null || pessoa.nomeExterno().isBlank())) {
+            if (pessoa.usuarioId() == null) {
                 throw new RegraNegocioException(
-                        "Cada participante deve possuir usuário interno ou nome externo.");
+                        "Cada participante deve possuir um usuário associado.");
+            }
+
+            if (pessoa.nomeExterno() != null && !pessoa.nomeExterno().isBlank()) {
+                throw new RegraNegocioException("Nome externo não é permitido para reservas.");
+            }
+
+            if (perfis.contains(Roles.USUARIO_FINAL)
+                    && !pessoa.usuarioId().equals(solicitanteId)) {
+                throw new RegraNegocioException(
+                        "Usuário final só pode reservar para si mesmo.");
+            }
+
+            if (perfis.contains(Roles.GESTOR_RESERVAS)
+                    && !reservaAutorizacaoService.usuarioPertenceEquipe(solicitanteId, pessoa.usuarioId())) {
+                throw new RegraNegocioException(
+                        "Gestor só pode reservar para membros da sua equipe.");
             }
         }
     }

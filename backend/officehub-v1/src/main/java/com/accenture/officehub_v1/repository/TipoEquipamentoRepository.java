@@ -16,4 +16,8 @@ public interface TipoEquipamentoRepository extends JpaRepository<TipoEquipamento
     boolean existsByNomeIgnoreCase(String nome);
 
     boolean existsByNomeIgnoreCaseAndIdNot(String nome, UUID id);
+
+    long count();
+
+    long countByAtivoTrue();
 }

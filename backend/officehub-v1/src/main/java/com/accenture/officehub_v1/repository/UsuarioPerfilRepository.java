@@ -1,5 +1,6 @@
 package com.accenture.officehub_v1.repository;
 
+import com.accenture.officehub_v1.entity.Usuario;
 import com.accenture.officehub_v1.entity.UsuarioPerfil;
 import com.accenture.officehub_v1.entity.UsuarioPerfilId;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,24 @@ import java.util.UUID;
 
 public interface UsuarioPerfilRepository extends JpaRepository<UsuarioPerfil, UsuarioPerfilId> {
 
-    @Query("SELECT up FROM UsuarioPerfil up JOIN FETCH up.perfil WHERE up.usuario.id = :usuarioId")
+    @Query("""
+            SELECT up
+            FROM UsuarioPerfil up
+            JOIN FETCH up.perfil
+            WHERE up.usuario.id = :usuarioId
+            """)
     List<UsuarioPerfil> findByUsuarioId(@Param("usuarioId") UUID usuarioId);
+
+    @Query("""
+            SELECT DISTINCT up.usuario
+            FROM UsuarioPerfil up
+            JOIN up.usuario u
+            JOIN up.perfil p
+            WHERE u.deletedAt IS NULL
+              AND u.ativo = true
+              AND UPPER(p.nome) = UPPER(:perfilNome)
+            ORDER BY u.nome ASC
+            """)
+    List<Usuario> findUsuariosAtivosPorPerfil(
+            @Param("perfilNome") String perfilNome);
 }

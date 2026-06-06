@@ -16,6 +16,7 @@ import com.accenture.officehub_v1.repository.PosicaoRepository;
 import com.accenture.officehub_v1.repository.ReservaRepository;
 import com.accenture.officehub_v1.repository.SalaRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
+import com.accenture.officehub_v1.security.Roles;
 import com.accenture.officehub_v1.service.ia.ConstantesAgenteIa;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -119,7 +120,8 @@ class ReservaAgenteAlocacaoIntegrationTest {
                 request(CriterioProximidade.OBRIGATORIA, 2,
                         pessoa("Estação Padrão"),
                         pessoa("Estação Padrão")),
-                solicitanteId);
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL));
 
         assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
         assertThat(response.alocacoes()).hasSize(2);
@@ -143,7 +145,8 @@ class ReservaAgenteAlocacaoIntegrationTest {
                 request(CriterioProximidade.PREFERENCIAL, 2,
                         pessoa("Estação Padrão"),
                         pessoa("Estação Padrão")),
-                solicitanteId))
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL)))
                 .isInstanceOf(ConflitoAlocacaoException.class)
                 .hasMessageContaining("posições livres suficientes");
 
@@ -158,7 +161,8 @@ class ReservaAgenteAlocacaoIntegrationTest {
 
         assertThatThrownBy(() -> reservaService.solicitarReserva(
                 request(CriterioProximidade.PREFERENCIAL, 1, pessoa("Estação Executiva")),
-                solicitanteId))
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL)))
                 .isInstanceOf(ConflitoAlocacaoException.class)
                 .hasMessageContaining("Estação Executiva");
 
@@ -175,7 +179,8 @@ class ReservaAgenteAlocacaoIntegrationTest {
                 request(CriterioProximidade.OBRIGATORIA, 2,
                         pessoa("Estação Padrão"),
                         pessoa("Estação Padrão")),
-                solicitanteId))
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL)))
                 .isInstanceOf(ConflitoAlocacaoException.class)
                 .hasMessageContaining("proximidade obrigatória");
 
@@ -192,7 +197,8 @@ class ReservaAgenteAlocacaoIntegrationTest {
                 request(CriterioProximidade.PREFERENCIAL, 2,
                         pessoa("Estação Padrão"),
                         pessoa("Estação Padrão")),
-                solicitanteId);
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL));
 
         assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
         assertThat(response.avisoProximidade()).contains("raio de proximidade preferencial");
@@ -236,6 +242,6 @@ class ReservaAgenteAlocacaoIntegrationTest {
     }
 
     private PessoaReservaRequest pessoa(String tipoPreferido) {
-        return new PessoaReservaRequest(null, "Visitante", tipoPreferido, null, null);
+        return new PessoaReservaRequest(solicitanteId, null, tipoPreferido, null, null);
     }
 }

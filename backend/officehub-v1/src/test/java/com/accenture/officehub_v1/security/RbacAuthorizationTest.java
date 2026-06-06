@@ -110,9 +110,11 @@ class RbacAuthorizationTest {
 
   @Test
   @WithMockUser(authorities = Roles.USUARIO_FINAL)
-  void listarSalas_usuarioFinal_retorna403() throws Exception {
+  void listarSalas_usuarioFinal_permitido() throws Exception {
+    when(salaService.listarNaoDeletadas()).thenReturn(List.of());
+
     mockMvc.perform(get("/api/v1/salas"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test
@@ -133,9 +135,11 @@ class RbacAuthorizationTest {
 
   @Test
   @WithMockUser(authorities = Roles.GESTOR_RESERVAS)
-  void listarTiposEquipamento_gestorReservas_retorna403() throws Exception {
+  void listarTiposEquipamento_gestorReservas_permitido() throws Exception {
+    when(tipoEquipamentoService.listar()).thenReturn(List.of());
+
     mockMvc.perform(get("/api/v1/tipos-equipamento"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isOk());
   }
 
   @Test

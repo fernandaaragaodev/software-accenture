@@ -23,4 +23,6 @@ public interface EquipeRepository extends JpaRepository<Equipe, UUID> {
             ORDER BY e.nome ASC
             """)
     List<Equipe> findAtivasPorGestor(@Param("gestorId") UUID gestorId);
+
+    long countByDeletedAtIsNull();
 }

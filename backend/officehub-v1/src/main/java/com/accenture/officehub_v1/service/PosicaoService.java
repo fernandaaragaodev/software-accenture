@@ -57,7 +57,7 @@ public class PosicaoService {
 
     public List<PosicaoResponse> listarPorSala(UUID salaId) {
         salaService.buscarEntidadeAtiva(salaId);
-        return posicaoRepository.findBySalaIdAndDeletedAtIsNull(salaId).stream()
+        return posicaoRepository.findBySalaIdOrderByIdentificadorAsc(salaId).stream()
                 .map(PosicaoResponse::from)
                 .toList();
     }
@@ -83,6 +83,28 @@ public class PosicaoService {
         posicao.setStatus(PosicaoStatus.INATIVA);
         posicao.setDeletedAt(OffsetDateTime.now());
         return PosicaoResponse.from(posicaoRepository.save(posicao));
+    }
+
+    @Transactional
+    public PosicaoResponse reativar(UUID id) {
+        Posicao posicao = posicaoRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Posição não encontrada."));
+
+        if (posicao.getDeletedAt() == null && PosicaoStatus.ATIVA.equalsIgnoreCase(posicao.getStatus())) {
+            throw new RegraNegocioException("A posição já está ativa.");
+        }
+
+        validarIdentificadorDuplicado(
+                posicao.getSala().getId(),
+                posicao.getIdentificador(),
+                posicao.getId());
+
+        posicao.setStatus(PosicaoStatus.ATIVA);
+        posicao.setDeletedAt(null);
+        Posicao posicaoSalva = posicaoRepository.save(posicao);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "REATIVAR", "Posicao", posicaoSalva.getId());
+        return PosicaoResponse.from(posicaoSalva);
     }
 
     public Posicao buscarEntidadeAtiva(UUID id) {

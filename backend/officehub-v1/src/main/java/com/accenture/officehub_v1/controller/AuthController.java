@@ -7,12 +7,14 @@ import com.accenture.officehub_v1.dto.response.LoginResponse;
 import com.accenture.officehub_v1.dto.response.UsuarioResponse;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.AuthService;
+import com.accenture.officehub_v1.service.UsuarioService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthService authService;
+    private final UsuarioService usuarioService;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -48,6 +51,11 @@ public class AuthController {
     public ResponseEntity<UsuarioResponse> registrar(@Valid @RequestBody CriarUsuarioRequest request) {
         UsuarioResponse response = authService.registrar(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioResponse> obterUsuarioAtual() {
+        return ResponseEntity.ok(usuarioService.buscarPorId(SecurityUtils.getUsuarioIdAtual()));
     }
 
     private UUID obterUsuarioIdSeAutenticado() {

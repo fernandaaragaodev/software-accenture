@@ -34,6 +34,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> {})
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex
@@ -59,6 +60,12 @@ public class SecurityConfig {
                                 Roles.INTEGRADOR,
                                 Roles.GESTOR_RESERVAS,
                                 Roles.ADMIN_SALA)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/salas", "/api/v1/salas/*")
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.INTEGRADOR,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers(HttpMethod.POST, "/api/v1/reservas")
                         .hasAnyAuthority(
                                 Roles.USUARIO_FINAL,
@@ -71,13 +78,23 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/reservas/**")
                         .hasAuthority(Roles.GESTOR_RESERVAS)
                         .requestMatchers("/api/v1/relatorios/**")
+                        .hasAnyAuthority(Roles.GESTOR_RESERVAS, Roles.ADMIN_SALA)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/usuarios/membros-equipe")
                         .hasAuthority(Roles.GESTOR_RESERVAS)
+                        .requestMatchers("/api/v1/usuarios/**")
+                        .hasAnyAuthority(Roles.GESTOR_RESERVAS, Roles.ADMIN_SALA)
                         .requestMatchers("/api/v1/notificacoes/**")
                         .hasAuthority(Roles.GESTOR_RESERVAS)
                         .requestMatchers("/api/v1/equipes/**")
                         .hasAnyAuthority(Roles.GESTOR_RESERVAS, Roles.ADMIN_SALA)
                         .requestMatchers("/api/v1/ia/**")
                         .hasAuthority(Roles.ADMIN_SALA)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tipos-equipamento")
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.INTEGRADOR,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers(
                                 "/api/v1/salas/**",
                                 "/api/v1/posicoes/**",
