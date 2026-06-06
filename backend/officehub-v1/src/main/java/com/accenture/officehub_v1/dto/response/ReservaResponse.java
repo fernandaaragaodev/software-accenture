@@ -5,6 +5,7 @@ import com.accenture.officehub_v1.entity.enums.StatusReserva;
 import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +14,8 @@ public record ReservaResponse(
         UUID salaId,
         UUID solicitanteId,
         LocalDate dataReserva,
+        LocalTime horaInicio,
+        LocalTime horaFim,
         Integer quantidadePessoas,
         String criterioProximidade,
         StatusReserva status,
@@ -39,6 +42,8 @@ public record ReservaResponse(
                 reserva.getSala().getId(),
                 reserva.getSolicitante().getId(),
                 reserva.getDataReserva(),
+                reserva.getHoraInicio(),
+                reserva.getHoraFim(),
                 reserva.getQuantidadePessoas(),
                 reserva.getCriterioProximidade(),
                 reserva.getStatus(),

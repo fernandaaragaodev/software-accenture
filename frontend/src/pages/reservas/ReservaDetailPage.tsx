@@ -97,6 +97,7 @@ export function ReservaDetailPage() {
         <dl className="detail-list">
           <div><dt>Status</dt><dd><StatusBadge status={reserva.status} /></dd></div>
           <div><dt>Data</dt><dd>{reserva.dataReserva}</dd></div>
+          <div><dt>Horário</dt><dd>{reserva.horaInicio?.slice(0, 5)} – {reserva.horaFim?.slice(0, 5)}</dd></div>
           <div><dt>Pessoas</dt><dd>{reserva.quantidadePessoas}</dd></div>
           <div><dt>Proximidade</dt><dd>{reserva.criterioProximidade}</dd></div>
           <div><dt>Sala ID</dt><dd className="mono">{reserva.salaId}</dd></div>

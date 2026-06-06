@@ -1,7 +1,7 @@
-import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
+import { regrasDisponibilidadeApi } from '../../api/regras-disponibilidade';
 import { salasApi } from '../../api/salas';
 import { Alert, PageHeader, StatusBadge } from '../../components/ui';
 import type { RegraDisponibilidadeResponse, SalaResponse } from '../../types';
@@ -12,39 +12,30 @@ export function SalaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [sala, setSala] = useState<SalaResponse | null>(null);
   const [regra, setRegra] = useState<RegraDisponibilidadeResponse | null>(null);
+  const [regrasDisponiveis, setRegrasDisponiveis] = useState<RegraDisponibilidadeResponse[]>([]);
+  const [regraSelecionada, setRegraSelecionada] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const [antecedencia, setAntecedencia] = useState('1');
-  const [horarios, setHorarios] = useState([
-    { diaSemana: 0, horaAbertura: '08:00:00', horaFechamento: '18:00:00' },
-    { diaSemana: 1, horaAbertura: '08:00:00', horaFechamento: '18:00:00' },
-    { diaSemana: 2, horaAbertura: '08:00:00', horaFechamento: '18:00:00' },
-    { diaSemana: 3, horaAbertura: '08:00:00', horaFechamento: '18:00:00' },
-    { diaSemana: 4, horaAbertura: '08:00:00', horaFechamento: '18:00:00' },
-  ]);
-
-  useEffect(() => {
+  function carregarDados() {
     if (!id) return;
     Promise.all([
       salasApi.obter(id),
       salasApi.listarRegrasDisponibilidade(id).catch(() => null),
+      regrasDisponibilidadeApi.listar().catch(() => []),
     ])
-      .then(([salaData, regraData]) => {
+      .then(([salaData, regraData, todasRegras]) => {
         setSala(salaData);
-        if (regraData) {
-          setRegra(regraData);
-          setAntecedencia(String(regraData.antecedenciaMinimaDias));
-          setHorarios(regraData.horarios.map((h) => ({
-            diaSemana: h.diaSemana,
-            horaAbertura: h.horaAbertura,
-            horaFechamento: h.horaFechamento,
-          })));
-        }
+        setRegra(regraData);
+        setRegrasDisponiveis(todasRegras.filter((r) => !r.salaId));
       })
       .catch((err) => setError(err instanceof ApiException ? err.message : 'Erro ao carregar sala'))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    carregarDados();
   }, [id]);
 
   async function handleStatusChange(status: 'ATIVA' | 'INATIVA' | 'MANUTENCAO') {
@@ -59,20 +50,32 @@ export function SalaDetailPage() {
     }
   }
 
-  async function handleRegraSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!id || regra) return;
+  async function handleAtribuirRegra() {
+    if (!id || !regraSelecionada) return;
     setError('');
     setSuccess('');
     try {
-      const created = await salasApi.criarRegraDisponibilidade(id, {
-        antecedenciaMinimaDias: Number(antecedencia),
-        horarios,
-      });
-      setRegra(created);
-      setSuccess('Regra de disponibilidade criada com sucesso');
+      const atribuida = await salasApi.atribuirRegra(id, { regraId: regraSelecionada });
+      setRegra(atribuida);
+      setRegraSelecionada('');
+      setSuccess('Regra atribuída à sala');
+      carregarDados();
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : 'Erro ao criar regra');
+      setError(err instanceof ApiException ? err.message : 'Erro ao atribuir regra');
+    }
+  }
+
+  async function handleDesatribuirRegra() {
+    if (!id) return;
+    setError('');
+    setSuccess('');
+    try {
+      await salasApi.desatribuirRegra(id);
+      setRegra(null);
+      setSuccess('Regra desatribuída da sala');
+      carregarDados();
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : 'Erro ao desatribuir regra');
     }
   }
 
@@ -122,6 +125,7 @@ export function SalaDetailPage() {
           <h3>Regra de disponibilidade</h3>
           {regra ? (
             <>
+              <p><strong>{regra.nome}</strong></p>
               <p>Antecedência mínima: <strong>{regra.antecedenciaMinimaDias} dia(s)</strong></p>
               <ul className="simple-list">
                 {regra.horarios.map((h) => (
@@ -130,22 +134,36 @@ export function SalaDetailPage() {
                   </li>
                 ))}
               </ul>
+              <button type="button" className="btn btn-sm btn-ghost mt-md" onClick={handleDesatribuirRegra}>
+                Desatribuir regra
+              </button>
             </>
           ) : (
-            <form onSubmit={handleRegraSubmit} className="form">
-              <label>
-                Antecedência mínima (dias)
-                <input
-                  type="number"
-                  min={0}
-                  value={antecedencia}
-                  onChange={(e) => setAntecedencia(e.target.value)}
-                  required
-                />
-              </label>
-              <p className="muted">Horários padrão: Seg–Sex 08:00–18:00</p>
-              <button type="submit" className="btn btn-primary">Criar regra</button>
-            </form>
+            <>
+              <p className="muted">Nenhuma regra atribuída a esta sala.</p>
+              <div className="form inline-form mt-md">
+                <label>
+                  Selecionar regra
+                  <select value={regraSelecionada} onChange={(e) => setRegraSelecionada(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {regrasDisponiveis.map((r) => (
+                      <option key={r.id} value={r.id}>{r.nome}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!regraSelecionada}
+                  onClick={handleAtribuirRegra}
+                >
+                  Atribuir
+                </button>
+              </div>
+              <p className="muted mt-md">
+                <Link to="/regras-disponibilidade">Gerenciar regras de disponibilidade</Link>
+              </p>
+            </>
           )}
         </div>
       </div>

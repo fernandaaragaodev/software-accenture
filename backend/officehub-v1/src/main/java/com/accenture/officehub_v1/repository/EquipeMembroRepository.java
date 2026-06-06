@@ -54,4 +54,19 @@ public interface EquipeMembroRepository extends JpaRepository<EquipeMembro, Equi
             ORDER BY u.nome ASC
             """)
     List<Usuario> findMembrosPorGestor(@Param("gestorId") UUID gestorId);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(em) > 0 THEN true ELSE false END
+            FROM EquipeMembro em
+            JOIN em.equipe e
+            JOIN e.gestores eg
+            WHERE em.equipe.id = :equipeId
+              AND em.usuario.id = :membroId
+              AND eg.usuario.id = :gestorId
+              AND e.deletedAt IS NULL
+            """)
+    boolean existsMembroNaEquipeDoGestor(
+            @Param("equipeId") UUID equipeId,
+            @Param("membroId") UUID membroId,
+            @Param("gestorId") UUID gestorId);
 }

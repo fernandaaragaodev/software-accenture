@@ -7,9 +7,12 @@ import { DisponibilidadePage } from './pages/DisponibilidadePage';
 import { LoginPage } from './pages/LoginPage';
 import { UsuariosPage } from './pages/UsuariosPage';
 import { EquipamentosPage } from './pages/admin/EquipamentosPage';
+import { RegrasDisponibilidadePage } from './pages/admin/RegrasDisponibilidadePage';
 import { LayoutsPage, PosicoesPage } from './pages/admin/LayoutsPosicoesPages';
 import { EquipeDetailPage } from './pages/equipes/EquipeDetailPage';
 import { EquipeFormPage, EquipesListPage } from './pages/equipes/EquipesPages';
+import { MinhaEquipeDetailPage } from './pages/equipes/MinhaEquipeDetailPage';
+import { MinhasEquipesPage } from './pages/equipes/MinhasEquipesPage';
 import { NovaReservaPage } from './pages/reservas/NovaReservaPage';
 import { ReservaDetailPage } from './pages/reservas/ReservaDetailPage';
 import { GestaoReservasPage, ReservasListPage } from './pages/reservas/ReservasListPage';
@@ -34,7 +37,13 @@ export default function App() {
                 <Route path="layouts" element={<LayoutsPage />} />
                 <Route path="posicoes" element={<PosicoesPage />} />
                 <Route path="equipamentos" element={<EquipamentosPage />} />
+                <Route path="regras-disponibilidade" element={<RegrasDisponibilidadePage />} />
                 <Route path="usuarios" element={<UsuariosPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute roles={['USUARIO_FINAL']} />}>
+                <Route path="minhas-equipes" element={<MinhasEquipesPage />} />
+                <Route path="minhas-equipes/:id" element={<MinhaEquipeDetailPage />} />
               </Route>
 
               <Route element={<ProtectedRoute roles={['GESTOR_RESERVAS', 'ADMIN_SALA']} />}>

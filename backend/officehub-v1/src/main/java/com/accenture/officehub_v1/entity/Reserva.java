@@ -24,6 +24,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -54,6 +55,14 @@ public class Reserva {
     @NotNull
     @Column(name = "data_reserva", nullable = false)
     private LocalDate dataReserva;
+
+    @NotNull
+    @Column(name = "hora_inicio", nullable = false)
+    private LocalTime horaInicio;
+
+    @NotNull
+    @Column(name = "hora_fim", nullable = false)
+    private LocalTime horaFim;
 
     @NotNull
     @Min(1)

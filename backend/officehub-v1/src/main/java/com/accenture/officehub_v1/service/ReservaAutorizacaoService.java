@@ -1,6 +1,7 @@
 package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.entity.Reserva;
+import com.accenture.officehub_v1.repository.EquipeGestorRepository;
 import com.accenture.officehub_v1.repository.EquipeMembroRepository;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
 import com.accenture.officehub_v1.security.Roles;
@@ -15,6 +16,7 @@ import java.util.UUID;
 public class ReservaAutorizacaoService {
 
     private final EquipeMembroRepository equipeMembroRepository;
+    private final EquipeGestorRepository equipeGestorRepository;
     private final ReservaPessoaRepository reservaPessoaRepository;
 
     public boolean podeGerenciarReserva(UUID usuarioId, Collection<String> perfis, Reserva reserva) {
@@ -35,6 +37,18 @@ public class ReservaAutorizacaoService {
         }
 
         return equipeMembroRepository.existsMembroNaEquipeDoGestor(membroId, gestorId);
+    }
+
+    public boolean usuarioPertenceEquipe(UUID equipeId, UUID gestorId, UUID membroId) {
+        if (gestorId.equals(membroId)) {
+            return equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipeId, gestorId);
+        }
+
+        return equipeMembroRepository.existsMembroNaEquipeDoGestor(equipeId, membroId, gestorId);
+    }
+
+    public boolean gestorGerenciaEquipe(UUID gestorId, UUID equipeId) {
+        return equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipeId, gestorId);
     }
 
     private boolean reservaPertenceEquipe(UUID gestorId, Reserva reserva) {

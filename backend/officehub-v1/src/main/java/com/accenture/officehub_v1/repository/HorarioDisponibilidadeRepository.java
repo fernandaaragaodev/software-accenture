@@ -4,11 +4,17 @@ import com.accenture.officehub_v1.entity.HorarioDisponibilidade;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface HorarioDisponibilidadeRepository extends JpaRepository<HorarioDisponibilidade, UUID> {
 
     List<HorarioDisponibilidade> findByRegraDisponibilidadeId(UUID regraDisponibilidadeId);
+
+    Optional<HorarioDisponibilidade> findByRegraDisponibilidadeIdAndDiaSemana(
+            UUID regraDisponibilidadeId, Integer diaSemana);
+
+    void deleteByRegraDisponibilidadeId(UUID regraDisponibilidadeId);
 
     boolean existsByRegraDisponibilidadeIdAndDiaSemana(UUID regraDisponibilidadeId, Integer diaSemana);
 }

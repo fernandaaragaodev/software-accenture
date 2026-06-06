@@ -36,8 +36,11 @@ public class RegraDisponibilidade {
     private UUID id;
 
     @NotNull
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sala_id", nullable = false, unique = true)
+    @Column(name = "nome", nullable = false)
+    private String nome;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sala_id", unique = true)
     private Sala sala;
 
     @NotNull

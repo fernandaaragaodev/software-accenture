@@ -24,5 +24,14 @@ public interface EquipeRepository extends JpaRepository<Equipe, UUID> {
             """)
     List<Equipe> findAtivasPorGestor(@Param("gestorId") UUID gestorId);
 
+    @Query("""
+            SELECT DISTINCT e FROM Equipe e
+            JOIN e.membros m
+            WHERE m.usuario.id = :usuarioId
+              AND e.deletedAt IS NULL
+            ORDER BY e.nome ASC
+            """)
+    List<Equipe> findAtivasPorMembro(@Param("usuarioId") UUID usuarioId);
+
     long countByDeletedAtIsNull();
 }

@@ -53,4 +53,9 @@ public class TipoEquipamentoController {
     public ResponseEntity<TipoEquipamentoResponse> inativar(@PathVariable UUID id) {
         return ResponseEntity.ok(tipoEquipamentoService.inativar(id));
     }
+
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<TipoEquipamentoResponse> ativar(@PathVariable UUID id) {
+        return ResponseEntity.ok(tipoEquipamentoService.ativar(id));
+    }
 }

@@ -64,6 +64,13 @@ public class TipoEquipamentoService {
         return TipoEquipamentoResponse.from(tipoEquipamentoRepository.save(tipoEquipamento));
     }
 
+    @Transactional
+    public TipoEquipamentoResponse ativar(UUID id) {
+        TipoEquipamento tipoEquipamento = buscarEntidade(id);
+        tipoEquipamento.setAtivo(true);
+        return TipoEquipamentoResponse.from(tipoEquipamentoRepository.save(tipoEquipamento));
+    }
+
     private TipoEquipamento buscarEntidade(UUID id) {
         return tipoEquipamentoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(

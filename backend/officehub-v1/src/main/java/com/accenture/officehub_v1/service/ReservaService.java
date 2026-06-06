@@ -67,7 +67,8 @@ public class ReservaService {
         validarPessoasInformadas(request, solicitanteId, perfis);
         validarCriterioProximidade(request.criterioProximidade());
 
-        List<Posicao> posicoesLivres = buscarPosicoesLivres(request.salaId(), request.dataReserva());
+        List<Posicao> posicoesLivres = buscarPosicoesLivres(
+                request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
 
         ResultadoExecucaoAgente execucaoIa = agenteAlocacaoService.executar(
                 request.salaId(),
@@ -162,10 +163,10 @@ public class ReservaService {
         return ReservaResponse.from(reserva);
     }
 
-    public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data) {
+    public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data, java.time.LocalTime horaInicio, java.time.LocalTime horaFim) {
         List<Posicao> posicoesAtivas = posicaoService.listarPosicoesAtivasDaSala(salaId);
         List<UUID> posicoesOcupadas = reservaPosicaoRepository.findPosicaoIdsOcupadas(
-                salaId, data, STATUS_OCUPAM_POSICAO);
+                salaId, data, horaInicio, horaFim, STATUS_OCUPAM_POSICAO);
 
         return posicoesAtivas.stream()
                 .filter(p -> !posicoesOcupadas.contains(p.getId()))
@@ -184,7 +185,8 @@ public class ReservaService {
     private Sala validarPreCondicoesReserva(SolicitarReservaRequest request) {
         Sala sala = salaService.buscarEntidadeAtiva(request.salaId());
         salaService.validarSalaAtiva(request.salaId());
-        disponibilidadeService.validarDisponibilidade(request.salaId(), request.dataReserva());
+        disponibilidadeService.validarDisponibilidade(
+                request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
         return sala;
     }
 
@@ -199,6 +201,8 @@ public class ReservaService {
                 .sala(sala)
                 .solicitante(solicitante)
                 .dataReserva(request.dataReserva())
+                .horaInicio(request.horaInicio())
+                .horaFim(request.horaFim())
                 .quantidadePessoas(request.quantidadePessoas())
                 .criterioProximidade(request.criterioProximidade())
                 .status(StatusReserva.CONFIRMADA)
@@ -258,6 +262,10 @@ public class ReservaService {
                     "A quantidade de pessoas informada não corresponde ao número de participantes cadastrados.");
         }
 
+        if (perfis.contains(Roles.GESTOR_RESERVAS)) {
+            validarReservaGestor(request, solicitanteId);
+        }
+
         for (PessoaReservaRequest pessoa : request.pessoas()) {
             if (pessoa.usuarioId() == null) {
                 throw new RegraNegocioException(
@@ -273,11 +281,24 @@ public class ReservaService {
                 throw new RegraNegocioException(
                         "Usuário final só pode reservar para si mesmo.");
             }
+        }
+    }
 
-            if (perfis.contains(Roles.GESTOR_RESERVAS)
-                    && !reservaAutorizacaoService.usuarioPertenceEquipe(solicitanteId, pessoa.usuarioId())) {
+    private void validarReservaGestor(SolicitarReservaRequest request, UUID solicitanteId) {
+        if (request.equipeId() == null) {
+            throw new RegraNegocioException(
+                    "Selecione a equipe para a qual deseja fazer a reserva.");
+        }
+
+        if (!reservaAutorizacaoService.gestorGerenciaEquipe(solicitanteId, request.equipeId())) {
+            throw new AcessoNegadoException("Você não gerencia a equipe selecionada.");
+        }
+
+        for (PessoaReservaRequest pessoa : request.pessoas()) {
+            if (!reservaAutorizacaoService.usuarioPertenceEquipe(
+                    request.equipeId(), solicitanteId, pessoa.usuarioId())) {
                 throw new RegraNegocioException(
-                        "Gestor só pode reservar para membros da sua equipe.");
+                        "Todos os participantes devem pertencer à equipe selecionada.");
             }
         }
     }

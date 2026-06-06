@@ -79,13 +79,26 @@ export interface HorarioDisponibilidade {
 }
 
 export interface CriarRegraDisponibilidadeRequest {
+  nome?: string;
   antecedenciaMinimaDias: number;
   horarios: Omit<HorarioDisponibilidade, 'id'>[];
 }
 
+export interface CriarRegraDisponibilidadeIndependenteRequest {
+  nome: string;
+  antecedenciaMinimaDias: number;
+  horarios: Omit<HorarioDisponibilidade, 'id'>[];
+}
+
+export interface AtribuirRegraSalaRequest {
+  regraId: string;
+}
+
 export interface RegraDisponibilidadeResponse {
   id: string;
-  salaId: string;
+  nome: string;
+  salaId?: string;
+  salaNome?: string;
   antecedenciaMinimaDias: number;
   horarios: HorarioDisponibilidade[];
 }
@@ -155,7 +168,10 @@ export interface PessoaReservaRequest {
 
 export interface SolicitarReservaRequest {
   salaId: string;
+  equipeId?: string;
   dataReserva: string;
+  horaInicio: string;
+  horaFim: string;
   quantidadePessoas: number;
   criterioProximidade: CriterioProximidade;
   pessoas: PessoaReservaRequest[];
@@ -172,6 +188,8 @@ export interface ReservaResponse {
   salaId: string;
   solicitanteId: string;
   dataReserva: string;
+  horaInicio: string;
+  horaFim: string;
   quantidadePessoas: number;
   criterioProximidade: CriterioProximidade;
   status: StatusReserva;

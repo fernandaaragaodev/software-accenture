@@ -120,6 +120,15 @@ export function EquipamentosPage() {
     }
   }
 
+  async function handleAtivarTipo(id: string) {
+    try {
+      await tiposEquipamentoApi.ativar(id);
+      setSuccess('Tipo de equipamento reativado');
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : 'Erro ao reativar');
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -256,13 +265,21 @@ export function EquipamentosPage() {
                       <td>{t.descricao ?? '—'}</td>
                       <td><StatusBadge status={t.ativo ? 'ATIVA' : 'INATIVA'} /></td>
                       <td>
-                        {t.ativo && (
+                        {t.ativo ? (
                           <button
                             type="button"
                             className="btn btn-sm btn-danger"
                             onClick={() => handleInativarTipo(t.id)}
                           >
                             Inativar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleAtivarTipo(t.id)}
+                          >
+                            Reativar
                           </button>
                         )}
                       </td>

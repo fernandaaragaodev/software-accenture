@@ -126,16 +126,30 @@ public class EquipeService {
                 .toList();
     }
 
-    public EquipeResponse buscarPorId(UUID equipeId, UUID usuarioId, Collection<String> perfis) {
-        validarPermissaoGestao(perfis);
+    public List<EquipeResumoResponse> listarMinhasEquipes(UUID usuarioId) {
+        return equipeRepository.findAtivasPorMembro(usuarioId).stream()
+                .map(this::inicializarRelacionamentos)
+                .map(EquipeResumoResponse::from)
+                .toList();
+    }
 
+    public EquipeResponse buscarPorId(UUID equipeId, UUID usuarioId, Collection<String> perfis) {
         Equipe equipe = carregarEquipeCompleta(equipeId);
 
-        if (!isAdmin(perfis) && !equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipeId, usuarioId)) {
+        if (isAdmin(perfis) || equipeGestorRepository.existsByEquipeIdAndUsuarioId(equipeId, usuarioId)) {
+            return EquipeResponse.from(equipe);
+        }
+
+        if (perfis.contains(Roles.USUARIO_FINAL)
+                && equipeMembroRepository.existsByEquipeIdAndUsuarioId(equipeId, usuarioId)) {
+            return EquipeResponse.from(equipe);
+        }
+
+        if (perfis.contains(Roles.GESTOR_RESERVAS)) {
             throw new AcessoNegadoException("Você não tem permissão para visualizar esta equipe.");
         }
 
-        return EquipeResponse.from(equipe);
+        throw new AcessoNegadoException("Você não tem permissão para visualizar esta equipe.");
     }
 
     private Equipe carregarEquipeCompleta(UUID equipeId) {

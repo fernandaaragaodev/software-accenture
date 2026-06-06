@@ -19,9 +19,13 @@ public interface ReservaPosicaoRepository extends JpaRepository<ReservaPosicao, 
               AND rp.reserva.dataReserva = :data
               AND rp.reserva.deletedAt IS NULL
               AND rp.reserva.status IN :statuses
+              AND rp.reserva.horaInicio < :horaFim
+              AND rp.reserva.horaFim > :horaInicio
             """)
     List<UUID> findPosicaoIdsOcupadas(
             @Param("salaId") UUID salaId,
             @Param("data") LocalDate data,
+            @Param("horaInicio") java.time.LocalTime horaInicio,
+            @Param("horaFim") java.time.LocalTime horaFim,
             @Param("statuses") Collection<StatusReserva> statuses);
 }

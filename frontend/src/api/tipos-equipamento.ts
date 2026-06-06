@@ -14,6 +14,7 @@ export const tiposEquipamentoApi = {
   atualizar: (id: string, data: TipoEquipamentoRequest) =>
     api.put<TipoEquipamentoResponse>(`/tipos-equipamento/${id}`, data),
   inativar: (id: string) => api.patch<TipoEquipamentoResponse>(`/tipos-equipamento/${id}/inativar`),
+  ativar: (id: string) => api.patch<TipoEquipamentoResponse>(`/tipos-equipamento/${id}/ativar`),
   listarPorPosicao: (posicaoId: string) =>
     api.get<PosicaoEquipamentoResponse[]>(`/posicoes/${posicaoId}/equipamentos`),
   vincularPosicao: (posicaoId: string, data: VincularEquipamentoPosicaoRequest) =>

@@ -44,6 +44,11 @@ public class EquipeController {
                 SecurityUtils.getPerfisAtuais()));
     }
 
+    @GetMapping("/minhas")
+    public ResponseEntity<List<EquipeResumoResponse>> listarMinhas() {
+        return ResponseEntity.ok(equipeService.listarMinhasEquipes(SecurityUtils.getUsuarioIdAtual()));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<EquipeResponse> buscarPorId(@PathVariable UUID id) {
         return ResponseEntity.ok(equipeService.buscarPorId(

@@ -9,7 +9,9 @@ import java.util.UUID;
 
 public record RegraDisponibilidadeResponse(
         UUID id,
+        String nome,
         UUID salaId,
+        String salaNome,
         Integer antecedenciaMinimaDias,
         List<HorarioResponse> horarios
 ) {
@@ -33,7 +35,9 @@ public record RegraDisponibilidadeResponse(
 
         return new RegraDisponibilidadeResponse(
                 regra.getId(),
-                regra.getSala().getId(),
+                regra.getNome(),
+                regra.getSala() != null ? regra.getSala().getId() : null,
+                regra.getSala() != null ? regra.getSala().getNome() : null,
                 regra.getAntecedenciaMinimaDias(),
                 horariosResponse
         );

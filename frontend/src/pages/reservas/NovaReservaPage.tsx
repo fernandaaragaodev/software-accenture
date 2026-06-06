@@ -3,14 +3,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { getMe } from '../../api/auth';
+import { equipesApi } from '../../api/equipes';
 import { reservasApi } from '../../api/reservas';
 import { salasApi } from '../../api/salas';
 import { tiposEquipamentoApi } from '../../api/tipos-equipamento';
-import { usuariosApi } from '../../api/usuarios';
 import { Alert, PageHeader } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import type {
   CriterioProximidade,
+  EquipeResponse,
+  EquipeResumoResponse,
+  HorarioDisponibilidade,
   PessoaReservaRequest,
   SalaResponse,
   TipoEquipamentoResponse,
@@ -20,6 +23,8 @@ import type {
 interface PessoaForm extends PessoaReservaRequest {
   key: number;
 }
+
+const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
 function criarPessoaVazia(key: number, usuarioId?: string): PessoaForm {
   return {
@@ -31,6 +36,20 @@ function criarPessoaVazia(key: number, usuarioId?: string): PessoaForm {
   };
 }
 
+function toTimeInput(value: string) {
+  return value.slice(0, 5);
+}
+
+function toApiTime(value: string) {
+  return value.length === 5 ? `${value}:00` : value;
+}
+
+function diaSemanaDaData(data: string) {
+  if (!data) return -1;
+  const date = new Date(`${data}T12:00:00`);
+  return (date.getDay() + 6) % 7;
+}
+
 export function NovaReservaPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -40,11 +59,16 @@ export function NovaReservaPage() {
 
   const [salas, setSalas] = useState<SalaResponse[]>([]);
   const [tiposEquipamento, setTiposEquipamento] = useState<TipoEquipamentoResponse[]>([]);
-  const [membrosEquipe, setMembrosEquipe] = useState<UsuarioResumo[]>([]);
+  const [equipes, setEquipes] = useState<EquipeResumoResponse[]>([]);
+  const [equipeSelecionada, setEquipeSelecionada] = useState<EquipeResponse | null>(null);
+  const [horarioDia, setHorarioDia] = useState<HorarioDisponibilidade | null>(null);
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioResumo | null>(null);
 
   const [salaId, setSalaId] = useState(searchParams.get('salaId') ?? '');
+  const [equipeId, setEquipeId] = useState('');
   const [dataReserva, setDataReserva] = useState(searchParams.get('data') ?? '');
+  const [horaInicio, setHoraInicio] = useState('08:00');
+  const [horaFim, setHoraFim] = useState('18:00');
   const [quantidadePessoas, setQuantidadePessoas] = useState(1);
   const [criterioProximidade, setCriterioProximidade] = useState<CriterioProximidade>('PREFERENCIAL');
   const [pessoas, setPessoas] = useState<PessoaForm[]>([criarPessoaVazia(1)]);
@@ -58,14 +82,14 @@ export function NovaReservaPage() {
   );
 
   const opcoesPessoas = useMemo(() => {
-    if (isGestor) {
+    if (isGestor && equipeSelecionada) {
       const map = new Map<string, UsuarioResumo>();
-      if (usuarioAtual) map.set(usuarioAtual.id, usuarioAtual);
-      membrosEquipe.forEach((m) => map.set(m.id, m));
+      equipeSelecionada.gestores.forEach((g) => map.set(g.id, g));
+      equipeSelecionada.membros.forEach((m) => map.set(m.id, m));
       return Array.from(map.values());
     }
     return usuarioAtual ? [usuarioAtual] : [];
-  }, [isGestor, usuarioAtual, membrosEquipe]);
+  }, [isGestor, equipeSelecionada, usuarioAtual]);
 
   useEffect(() => {
     async function carregarDados() {
@@ -88,8 +112,11 @@ export function NovaReservaPage() {
         setSalaId(salaInicial);
 
         if (isGestor) {
-          const membros = await usuariosApi.listarMembrosEquipe();
-          setMembrosEquipe(membros);
+          const equipesData = await equipesApi.listar();
+          setEquipes(equipesData);
+          if (equipesData.length > 0) {
+            setEquipeId(equipesData[0].id);
+          }
         }
 
         setPessoas([criarPessoaVazia(1, isUsuarioFinal ? me.id : '')]);
@@ -102,6 +129,35 @@ export function NovaReservaPage() {
 
     carregarDados();
   }, [isGestor, isUsuarioFinal, searchParams]);
+
+  useEffect(() => {
+    if (!isGestor || !equipeId) {
+      setEquipeSelecionada(null);
+      return;
+    }
+
+    equipesApi.obter(equipeId).then(setEquipeSelecionada).catch(() => setEquipeSelecionada(null));
+  }, [isGestor, equipeId]);
+
+  useEffect(() => {
+    if (!salaId || !dataReserva) {
+      setHorarioDia(null);
+      return;
+    }
+
+    salasApi
+      .listarRegrasDisponibilidade(salaId)
+      .then((regra) => {
+        const dia = diaSemanaDaData(dataReserva);
+        const horario = regra.horarios.find((h) => h.diaSemana === dia) ?? null;
+        setHorarioDia(horario);
+        if (horario) {
+          setHoraInicio(toTimeInput(horario.horaAbertura));
+          setHoraFim(toTimeInput(horario.horaFechamento));
+        }
+      })
+      .catch(() => setHorarioDia(null));
+  }, [salaId, dataReserva]);
 
   useEffect(() => {
     if (isUsuarioFinal && usuarioAtual) {
@@ -134,10 +190,29 @@ export function NovaReservaPage() {
     e.preventDefault();
     setError('');
 
+    if (isGestor && !equipeId) {
+      setError('Selecione a equipe para a reserva.');
+      return;
+    }
+
+    if (horaInicio >= horaFim) {
+      setError('A hora de início deve ser anterior à hora de fim.');
+      return;
+    }
+
+    if (horarioDia) {
+      const abertura = toTimeInput(horarioDia.horaAbertura);
+      const fechamento = toTimeInput(horarioDia.horaFechamento);
+      if (horaInicio < abertura || horaFim > fechamento) {
+        setError(`O horário deve estar entre ${abertura} e ${fechamento}.`);
+        return;
+      }
+    }
+
     if (isGestor) {
       const ids = pessoas.map((p) => p.usuarioId).filter(Boolean);
       if (ids.length !== pessoas.length) {
-        setError('Selecione o membro da equipe para cada pessoa.');
+        setError('Selecione o participante para cada pessoa.');
         return;
       }
       if (new Set(ids).size !== ids.length) {
@@ -150,7 +225,10 @@ export function NovaReservaPage() {
     try {
       const reserva = await reservasApi.solicitar({
         salaId,
+        equipeId: isGestor ? equipeId : undefined,
         dataReserva,
+        horaInicio: toApiTime(horaInicio),
+        horaFim: toApiTime(horaFim),
         quantidadePessoas,
         criterioProximidade,
         pessoas: pessoas.map(({ key: _, ...p }) => p),
@@ -198,6 +276,21 @@ export function NovaReservaPage() {
                 <p className="muted">Nenhuma sala ativa disponível.</p>
               )}
             </label>
+
+            {isGestor && (
+              <label>
+                Equipe *
+                <select value={equipeId} onChange={(e) => setEquipeId(e.target.value)} required>
+                  <option value="">Selecione a equipe...</option>
+                  {equipes.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.nome} ({eq.quantidadeMembros} membros)
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
             <label>
               Data *
               <input
@@ -207,6 +300,31 @@ export function NovaReservaPage() {
                 required
               />
             </label>
+
+            <label>
+              Hora início *
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                min={horarioDia ? toTimeInput(horarioDia.horaAbertura) : undefined}
+                max={horarioDia ? toTimeInput(horarioDia.horaFechamento) : undefined}
+                required
+              />
+            </label>
+
+            <label>
+              Hora fim *
+              <input
+                type="time"
+                value={horaFim}
+                onChange={(e) => setHoraFim(e.target.value)}
+                min={horarioDia ? toTimeInput(horarioDia.horaAbertura) : undefined}
+                max={horarioDia ? toTimeInput(horarioDia.horaFechamento) : undefined}
+                required
+              />
+            </label>
+
             <label>
               Quantidade de pessoas *
               <input
@@ -221,6 +339,7 @@ export function NovaReservaPage() {
                 <small className="muted">Reserva individual — apenas para você.</small>
               )}
             </label>
+
             <label>
               Critério de proximidade *
               <select
@@ -233,6 +352,17 @@ export function NovaReservaPage() {
             </label>
           </div>
 
+          {horarioDia && (
+            <p className="muted">
+              Horário permitido em {DIAS_SEMANA[horarioDia.diaSemana]}:{' '}
+              {toTimeInput(horarioDia.horaAbertura)} – {toTimeInput(horarioDia.horaFechamento)}
+            </p>
+          )}
+
+          {!horarioDia && dataReserva && salaId && (
+            <Alert message="A sala não possui horário configurado para o dia selecionado." />
+          )}
+
           <h3 className="section-title">Pessoas</h3>
           {pessoas.map((pessoa, index) => (
             <div key={pessoa.key} className="person-card">
@@ -240,11 +370,12 @@ export function NovaReservaPage() {
               <div className="form-grid">
                 {isGestor ? (
                   <label>
-                    Membro da equipe *
+                    Participante *
                     <select
                       value={pessoa.usuarioId ?? ''}
                       onChange={(e) => updatePessoa(index, 'usuarioId', e.target.value)}
                       required
+                      disabled={!equipeSelecionada}
                     >
                       <option value="">Selecione...</option>
                       {opcoesPessoas.map((u) => (
@@ -308,7 +439,11 @@ export function NovaReservaPage() {
 
           <div className="form-actions">
             <Link to="/reservas" className="btn btn-ghost">Voltar</Link>
-            <button type="submit" className="btn btn-primary" disabled={loading || !salaId}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || !salaId || (!horarioDia && !!dataReserva)}
+            >
               {loading ? 'Processando alocação...' : 'Solicitar reserva'}
             </button>
           </div>

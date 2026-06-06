@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -235,7 +236,10 @@ class ReservaAgenteAlocacaoIntegrationTest {
     private SolicitarReservaRequest request(String criterio, int qtd, PessoaReservaRequest... pessoas) {
         return new SolicitarReservaRequest(
                 salaId,
+                null,
                 dataReserva,
+                LocalTime.of(8, 0),
+                LocalTime.of(18, 0),
                 qtd,
                 criterio,
                 List.of(pessoas));

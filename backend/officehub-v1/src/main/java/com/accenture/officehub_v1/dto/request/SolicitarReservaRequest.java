@@ -7,14 +7,20 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
 public record SolicitarReservaRequest(
         @NotNull(message = "O ID da sala é obrigatório")
         UUID salaId,
+        UUID equipeId,
         @NotNull(message = "A data da reserva é obrigatória")
         LocalDate dataReserva,
+        @NotNull(message = "A hora de início é obrigatória")
+        LocalTime horaInicio,
+        @NotNull(message = "A hora de fim é obrigatória")
+        LocalTime horaFim,
         @NotNull(message = "A quantidade de pessoas é obrigatória")
         @Min(value = 1, message = "A quantidade de pessoas deve ser maior que zero")
         Integer quantidadePessoas,

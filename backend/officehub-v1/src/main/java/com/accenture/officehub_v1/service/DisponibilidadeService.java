@@ -1,5 +1,7 @@
 package com.accenture.officehub_v1.service;
 
+import com.accenture.officehub_v1.dto.request.AtribuirRegraSalaRequest;
+import com.accenture.officehub_v1.dto.request.CriarRegraDisponibilidadeIndependenteRequest;
 import com.accenture.officehub_v1.dto.request.CriarRegraDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.ExcecaoDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.HorarioDisponibilidadeRequest;
@@ -29,10 +31,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -65,15 +69,135 @@ public class DisponibilidadeService {
 
         validarHorarios(request.horarios());
 
+        String nome = request.nome() != null && !request.nome().isBlank()
+                ? request.nome().trim()
+                : "Regra — " + sala.getNome();
+
         RegraDisponibilidade regra = RegraDisponibilidade.builder()
+                .nome(nome)
                 .sala(sala)
                 .antecedenciaMinimaDias(request.antecedenciaMinimaDias())
                 .build();
 
         regra = regraDisponibilidadeRepository.save(regra);
 
+        RegraDisponibilidadeResponse response = salvarRegraComHorarios(regra, request.horarios());
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CRIAR", "RegraDisponibilidade", response.id());
+        return response;
+    }
+
+    @Transactional
+    public RegraDisponibilidadeResponse criarRegraIndependente(
+            CriarRegraDisponibilidadeIndependenteRequest request) {
+        validarHorarios(request.horarios());
+
+        RegraDisponibilidade regra = RegraDisponibilidade.builder()
+                .nome(request.nome().trim())
+                .antecedenciaMinimaDias(request.antecedenciaMinimaDias())
+                .build();
+
+        RegraDisponibilidadeResponse response = salvarRegraComHorarios(regra, request.horarios());
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CRIAR", "RegraDisponibilidade", response.id());
+        return response;
+    }
+
+    public List<RegraDisponibilidadeResponse> listarRegras() {
+        return regraDisponibilidadeRepository.findAllByOrderByNomeAsc().stream()
+                .map(regra -> RegraDisponibilidadeResponse.from(
+                        regra,
+                        horarioDisponibilidadeRepository.findByRegraDisponibilidadeId(regra.getId())))
+                .toList();
+    }
+
+    public RegraDisponibilidadeResponse buscarRegra(UUID regraId) {
+        RegraDisponibilidade regra = buscarEntidadeRegra(regraId);
+        List<HorarioDisponibilidade> horarios =
+                horarioDisponibilidadeRepository.findByRegraDisponibilidadeId(regra.getId());
+        return RegraDisponibilidadeResponse.from(regra, horarios);
+    }
+
+    @Transactional
+    public RegraDisponibilidadeResponse atualizarRegra(
+            UUID regraId,
+            CriarRegraDisponibilidadeIndependenteRequest request) {
+        RegraDisponibilidade regra = buscarEntidadeRegra(regraId);
+        validarHorarios(request.horarios());
+
+        regra.setNome(request.nome().trim());
+        regra.setAntecedenciaMinimaDias(request.antecedenciaMinimaDias());
+        regra = regraDisponibilidadeRepository.save(regra);
+
+        horarioDisponibilidadeRepository.deleteByRegraDisponibilidadeId(regra.getId());
+        List<HorarioDisponibilidade> horarios = persistirHorarios(regra, request.horarios());
+
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "ATUALIZAR", "RegraDisponibilidade", regraId);
+        return RegraDisponibilidadeResponse.from(regra, horarios);
+    }
+
+    @Transactional
+    public void excluirRegra(UUID regraId) {
+        RegraDisponibilidade regra = buscarEntidadeRegra(regraId);
+
+        if (regra.getSala() != null) {
+            throw new RegraNegocioException(
+                    "Desatribua a regra da sala antes de excluí-la.");
+        }
+
+        horarioDisponibilidadeRepository.deleteByRegraDisponibilidadeId(regra.getId());
+        regraDisponibilidadeRepository.delete(regra);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "EXCLUIR", "RegraDisponibilidade", regraId);
+    }
+
+    @Transactional
+    public RegraDisponibilidadeResponse atribuirRegraSala(UUID salaId, AtribuirRegraSalaRequest request) {
+        Sala sala = salaService.buscarEntidadeAtiva(salaId);
+
+        if (regraDisponibilidadeRepository.existsBySalaId(salaId)) {
+            throw new RegraNegocioException(
+                    "Esta sala já possui uma regra de disponibilidade atribuída.");
+        }
+
+        RegraDisponibilidade regra = buscarEntidadeRegra(request.regraId());
+
+        if (regra.getSala() != null) {
+            throw new RegraNegocioException(
+                    "Esta regra já está atribuída a outra sala. Desatribua-a primeiro.");
+        }
+
+        regra.setSala(sala);
+        regra = regraDisponibilidadeRepository.save(regra);
+
+        List<HorarioDisponibilidade> horarios =
+                horarioDisponibilidadeRepository.findByRegraDisponibilidadeId(regra.getId());
+
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "ATRIBUIR", "RegraDisponibilidade", regra.getId());
+        return RegraDisponibilidadeResponse.from(regra, horarios);
+    }
+
+    @Transactional
+    public void desatribuirRegraSala(UUID salaId) {
+        RegraDisponibilidade regra = regraDisponibilidadeRepository.findBySalaId(salaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Regra de disponibilidade não encontrada para esta sala."));
+
+        regra.setSala(null);
+        regraDisponibilidadeRepository.save(regra);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "DESATRIBUIR", "RegraDisponibilidade", regra.getId());
+    }
+
+    private RegraDisponibilidadeResponse salvarRegraComHorarios(
+            RegraDisponibilidade regra,
+            List<HorarioDisponibilidadeRequest> horariosRequest) {
+        regra = regraDisponibilidadeRepository.save(regra);
+        List<HorarioDisponibilidade> horarios = persistirHorarios(regra, horariosRequest);
+        return RegraDisponibilidadeResponse.from(regra, horarios);
+    }
+
+    private List<HorarioDisponibilidade> persistirHorarios(
+            RegraDisponibilidade regra,
+            List<HorarioDisponibilidadeRequest> horariosRequest) {
         RegraDisponibilidade regraFinal = regra;
-        List<HorarioDisponibilidade> horarios = request.horarios().stream()
+        return horariosRequest.stream()
                 .map(h -> HorarioDisponibilidade.builder()
                         .regraDisponibilidade(regraFinal)
                         .diaSemana(h.diaSemana())
@@ -82,9 +206,12 @@ public class DisponibilidadeService {
                         .build())
                 .map(horarioDisponibilidadeRepository::save)
                 .toList();
+    }
 
-        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CRIAR", "RegraDisponibilidade", regra.getId());
-        return RegraDisponibilidadeResponse.from(regra, horarios);
+    private RegraDisponibilidade buscarEntidadeRegra(UUID regraId) {
+        return regraDisponibilidadeRepository.findById(regraId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Regra de disponibilidade não encontrada."));
     }
 
     @Transactional
@@ -129,7 +256,7 @@ public class DisponibilidadeService {
 
         List<Posicao> todasPosicoes = posicaoService.listarPosicoesDaSala(salaId);
         List<UUID> posicoesOcupadasIds = reservaPosicaoRepository.findPosicaoIdsOcupadas(
-                salaId, data, STATUS_OCUPAM_POSICAO);
+                salaId, data, LocalTime.MIN, LocalTime.MAX, STATUS_OCUPAM_POSICAO);
 
         int totalInativas = 0;
         int totalLivres = 0;
@@ -211,6 +338,10 @@ public class DisponibilidadeService {
     }
 
     public void validarDisponibilidade(UUID salaId, LocalDate data) {
+        validarDisponibilidade(salaId, data, null, null);
+    }
+
+    public void validarDisponibilidade(UUID salaId, LocalDate data, LocalTime horaInicio, LocalTime horaFim) {
         RegraDisponibilidade regra = regraDisponibilidadeRepository.findBySalaId(salaId)
                 .orElseThrow(() -> new RegraNegocioException(
                         "A sala não possui regra de disponibilidade configurada."));
@@ -218,6 +349,40 @@ public class DisponibilidadeService {
         verificarExcecao(salaId, data);
         verificarAntecedenciaMinima(regra, data);
         verificarDiaSemanaPermitido(regra, data);
+
+        if (horaInicio != null && horaFim != null) {
+            verificarHorarioDentroRegra(regra, data, horaInicio, horaFim);
+        }
+    }
+
+    public void verificarHorarioDentroRegra(
+            RegraDisponibilidade regra,
+            LocalDate data,
+            LocalTime horaInicio,
+            LocalTime horaFim) {
+        if (!horaInicio.isBefore(horaFim)) {
+            throw new RegraNegocioException("A hora de início deve ser anterior à hora de fim.");
+        }
+
+        int diaSemana = converterDiaSemana(data);
+        HorarioDisponibilidade horario = horarioDisponibilidadeRepository
+                .findByRegraDisponibilidadeIdAndDiaSemana(regra.getId(), diaSemana)
+                .orElseThrow(() -> new RegraNegocioException(
+                        "A sala não aceita reservas no dia da semana informado."));
+
+        if (horaInicio.isBefore(horario.getHoraAbertura())
+                || horaFim.isAfter(horario.getHoraFechamento())) {
+            throw new RegraNegocioException(String.format(
+                    "O horário da reserva deve estar entre %s e %s.",
+                    horario.getHoraAbertura(),
+                    horario.getHoraFechamento()));
+        }
+    }
+
+    public Optional<HorarioDisponibilidade> buscarHorarioDia(UUID salaId, LocalDate data) {
+        return regraDisponibilidadeRepository.findBySalaId(salaId)
+                .flatMap(regra -> horarioDisponibilidadeRepository.findByRegraDisponibilidadeIdAndDiaSemana(
+                        regra.getId(), converterDiaSemana(data)));
     }
 
     public void verificarAntecedenciaMinima(RegraDisponibilidade regra, LocalDate data) {
@@ -259,9 +424,12 @@ public class DisponibilidadeService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Regra de disponibilidade não encontrada para esta sala."));
 
+        return montarResponse(regra);
+    }
+
+    private RegraDisponibilidadeResponse montarResponse(RegraDisponibilidade regra) {
         List<HorarioDisponibilidade> horarios =
                 horarioDisponibilidadeRepository.findByRegraDisponibilidadeId(regra.getId());
-
         return RegraDisponibilidadeResponse.from(regra, horarios);
     }
 

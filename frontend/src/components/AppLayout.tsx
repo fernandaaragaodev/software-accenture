@@ -39,12 +39,17 @@ export function AppLayout() {
               <NavLink to="/layouts">Layouts</NavLink>
               <NavLink to="/posicoes">Posições</NavLink>
               <NavLink to="/equipamentos">Equipamentos</NavLink>
+              <NavLink to="/regras-disponibilidade">Disponibilidade</NavLink>
               <NavLink to="/usuarios">Usuários</NavLink>
             </>
           )}
 
           {hasAnyRole(['GESTOR_RESERVAS', 'ADMIN_SALA']) && (
             <NavLink to="/equipes">Equipes</NavLink>
+          )}
+
+          {hasAnyRole(['USUARIO_FINAL']) && (
+            <NavLink to="/minhas-equipes">Minhas Equipes</NavLink>
           )}
 
           {hasAnyRole(['USUARIO_FINAL', 'GESTOR_RESERVAS', 'INTEGRADOR']) && (
