@@ -62,6 +62,7 @@ export function NovaReservaPage() {
   const [equipes, setEquipes] = useState<EquipeResumoResponse[]>([]);
   const [equipeSelecionada, setEquipeSelecionada] = useState<EquipeResponse | null>(null);
   const [horarioDia, setHorarioDia] = useState<HorarioDisponibilidade | null>(null);
+  const [avisoHorario, setAvisoHorario] = useState('');
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioResumo | null>(null);
 
   const [salaId, setSalaId] = useState(searchParams.get('salaId') ?? '');
@@ -147,6 +148,7 @@ export function NovaReservaPage() {
   useEffect(() => {
     if (!salaId || !dataReserva) {
       setHorarioDia(null);
+      setAvisoHorario('');
       return;
     }
 
@@ -156,12 +158,24 @@ export function NovaReservaPage() {
         const dia = diaSemanaDaData(dataReserva);
         const horario = regra.horarios.find((h) => h.diaSemana === dia) ?? null;
         setHorarioDia(horario);
+        setAvisoHorario(
+          horario
+            ? ''
+            : 'A sala não possui horário configurado para o dia selecionado.',
+        );
         if (horario) {
           setHoraInicio(toTimeInput(horario.horaAbertura));
           setHoraFim(toTimeInput(horario.horaFechamento));
         }
       })
-      .catch(() => setHorarioDia(null));
+      .catch((err) => {
+        setHorarioDia(null);
+        setAvisoHorario(
+          err instanceof ApiException
+            ? err.message
+            : 'Erro ao carregar regra de disponibilidade da sala.',
+        );
+      });
   }, [salaId, dataReserva]);
 
   useEffect(() => {
@@ -373,8 +387,8 @@ export function NovaReservaPage() {
             </p>
           )}
 
-          {!horarioDia && dataReserva && salaId && (
-            <Alert message="A sala não possui horário configurado para o dia selecionado." />
+          {!horarioDia && dataReserva && salaId && avisoHorario && (
+            <Alert message={avisoHorario} />
           )}
 
           <div className="info-box">

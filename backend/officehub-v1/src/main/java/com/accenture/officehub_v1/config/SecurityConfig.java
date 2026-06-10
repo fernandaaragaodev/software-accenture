@@ -62,6 +62,12 @@ public class SecurityConfig {
                                 Roles.INTEGRADOR,
                                 Roles.GESTOR_RESERVAS,
                                 Roles.ADMIN_SALA)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/salas/*/regras-disponibilidade")
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.INTEGRADOR,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers(HttpMethod.GET, "/api/v1/salas", "/api/v1/salas/*")
                         .hasAnyAuthority(
                                 Roles.USUARIO_FINAL,

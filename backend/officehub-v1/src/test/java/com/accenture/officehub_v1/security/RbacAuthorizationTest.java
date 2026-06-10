@@ -1,6 +1,7 @@
 package com.accenture.officehub_v1.security;
 
 import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
+import com.accenture.officehub_v1.dto.response.RegraDisponibilidadeResponse;
 import com.accenture.officehub_v1.entity.enums.StatusSala;
 import com.accenture.officehub_v1.service.DisponibilidadeService;
 import com.accenture.officehub_v1.service.EquipeService;
@@ -122,6 +123,28 @@ class RbacAuthorizationTest {
   void consultarDisponibilidade_usuarioFinal_permitido() throws Exception {
     mockMvc.perform(get("/api/v1/salas/{id}/disponibilidade", SALA_ID)
             .param("data", "2026-06-04"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.USUARIO_FINAL)
+  void buscarRegrasDisponibilidade_usuarioFinal_permitido() throws Exception {
+    when(disponibilidadeService.buscarRegraPorSala(SALA_ID))
+        .thenReturn(new RegraDisponibilidadeResponse(
+            UUID.randomUUID(), "Regra padrão", SALA_ID, "Sala 1", 0, List.of()));
+
+    mockMvc.perform(get("/api/v1/salas/{id}/regras-disponibilidade", SALA_ID))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.GESTOR_RESERVAS)
+  void buscarRegrasDisponibilidade_gestor_permitido() throws Exception {
+    when(disponibilidadeService.buscarRegraPorSala(SALA_ID))
+        .thenReturn(new RegraDisponibilidadeResponse(
+            UUID.randomUUID(), "Regra padrão", SALA_ID, "Sala 1", 0, List.of()));
+
+    mockMvc.perform(get("/api/v1/salas/{id}/regras-disponibilidade", SALA_ID))
         .andExpect(status().isOk());
   }
 
