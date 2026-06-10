@@ -17,6 +17,8 @@ import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.service.ia.AgenteAlocacaoService;
 import com.accenture.officehub_v1.service.ia.ResultadoExecucaoAgente;
+import com.accenture.officehub_v1.dto.response.ReservaPosicaoAlocadaResponse;
+import com.accenture.officehub_v1.repository.PosicaoEquipamentoRepository;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
 import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
 import com.accenture.officehub_v1.repository.ReservaRepository;
@@ -33,8 +35,10 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +51,7 @@ public class ReservaService {
     private final ReservaRepository reservaRepository;
     private final ReservaPessoaRepository reservaPessoaRepository;
     private final ReservaPosicaoRepository reservaPosicaoRepository;
+    private final PosicaoEquipamentoRepository posicaoEquipamentoRepository;
     private final UsuarioRepository usuarioRepository;
     private final SalaService salaService;
     private final DisponibilidadeService disponibilidadeService;
@@ -122,7 +127,7 @@ public class ReservaService {
         reserva = reservaRepository.save(reserva);
         notificacaoService.notificarCancelamentoReserva(reserva);
         auditService.registrar(canceladoPorId, "CANCELAR", "Reserva", reserva.getId());
-        return ReservaResponse.from(reserva);
+        return toResponse(reserva);
     }
 
     @Transactional
@@ -138,7 +143,7 @@ public class ReservaService {
         reserva.setStatus(StatusReserva.CONFIRMADA);
         reserva = reservaRepository.save(reserva);
         notificacaoService.notificarConfirmacaoReserva(reserva);
-        return ReservaResponse.from(reserva);
+        return toResponse(reserva);
     }
 
     @Transactional
@@ -155,13 +160,13 @@ public class ReservaService {
         reserva.setMotivoRejeicao(motivoRejeicao);
         reserva = reservaRepository.save(reserva);
         notificacaoService.notificarRejeicaoReserva(reserva);
-        return ReservaResponse.from(reserva);
+        return toResponse(reserva);
     }
 
     public ReservaResponse buscarPorId(UUID id, UUID usuarioId, Collection<String> perfis) {
         Reserva reserva = buscarEntidadeAtiva(id);
         validarPermissaoGerenciarReserva(reserva, usuarioId, perfis);
-        return ReservaResponse.from(reserva);
+        return toResponse(reserva);
     }
 
     public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data, java.time.LocalTime horaInicio, java.time.LocalTime horaFim) {
@@ -212,7 +217,7 @@ public class ReservaService {
 
         persistirPessoasEPosicoes(reserva, alocacoes);
         notificacaoService.notificarConfirmacaoReserva(reserva);
-        return ReservaResponse.from(reserva, alocacoes, avisoProximidade);
+        return toResponse(reserva, avisoProximidade);
     }
 
     private void persistirPessoasEPosicoes(Reserva reserva, List<ItemAlocacao> alocacoes) {
@@ -317,5 +322,33 @@ public class ReservaService {
             throw new AcessoNegadoException(
                     "Você não tem permissão para gerenciar esta reserva.");
         }
+    }
+
+    private ReservaResponse toResponse(Reserva reserva) {
+        return toResponse(reserva, null);
+    }
+
+    private ReservaResponse toResponse(Reserva reserva, String avisoProximidade) {
+        List<ReservaPosicao> reservaPosicoes =
+                reservaPosicaoRepository.findByReservaIdWithDetails(reserva.getId());
+
+        List<UUID> posicaoIds = reservaPosicoes.stream()
+                .map(rp -> rp.getPosicao().getId())
+                .toList();
+
+        Map<UUID, List<String>> equipamentosPorPosicao = posicaoIds.isEmpty()
+                ? Map.of()
+                : posicaoEquipamentoRepository.findByPosicaoIdInWithTipoEquipamento(posicaoIds).stream()
+                        .collect(Collectors.groupingBy(
+                                pe -> pe.getPosicao().getId(),
+                                Collectors.mapping(pe -> pe.getTipoEquipamento().getNome(), Collectors.toList())));
+
+        List<ReservaPosicaoAlocadaResponse> alocacoes = reservaPosicoes.stream()
+                .map(rp -> ReservaPosicaoAlocadaResponse.from(
+                        rp,
+                        equipamentosPorPosicao.getOrDefault(rp.getPosicao().getId(), List.of())))
+                .toList();
+
+        return ReservaResponse.from(reserva, alocacoes, avisoProximidade);
     }
 }

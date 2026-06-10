@@ -110,24 +110,32 @@ export function ReservaDetailPage() {
         </dl>
 
         <h3 className="section-title">Alocações</h3>
-        {reserva.alocacoes.length === 0 ? (
-          <p className="muted">Nenhuma posição alocada.</p>
+        {reserva.status === 'CONFIRMADA' && reserva.alocacoes.length === 0 ? (
+          <p className="muted">Nenhuma posição alocada para esta reserva confirmada.</p>
+        ) : reserva.alocacoes.length === 0 ? (
+          <p className="muted">As posições serão exibidas após a confirmação da reserva.</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th>Participante</th>
                   <th>Posição</th>
-                  <th>Identificador</th>
-                  <th>Tipo</th>
+                  <th>Tipo de posição</th>
+                  <th>Equipamentos</th>
                 </tr>
               </thead>
               <tbody>
                 {reserva.alocacoes.map((a) => (
                   <tr key={a.posicaoId}>
-                    <td className="mono">{a.posicaoId.slice(0, 8)}...</td>
+                    <td>{a.pessoaNome ?? '—'}</td>
                     <td><strong>{a.posicaoIdentificador}</strong></td>
                     <td>{a.posicaoTipo ?? '—'}</td>
+                    <td>
+                      {a.equipamentos && a.equipamentos.length > 0
+                        ? a.equipamentos.join(', ')
+                        : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -2,7 +2,6 @@ package com.accenture.officehub_v1.dto.response;
 
 import com.accenture.officehub_v1.entity.Reserva;
 import com.accenture.officehub_v1.entity.enums.StatusReserva;
-import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -28,15 +27,10 @@ public record ReservaResponse(
         return from(reserva, List.of(), null);
     }
 
-    public static ReservaResponse from(Reserva reserva, List<ItemAlocacao> alocacoes) {
-        return from(reserva, alocacoes, null);
-    }
-
-    public static ReservaResponse from(Reserva reserva, List<ItemAlocacao> alocacoes, String avisoProximidade) {
-        List<ReservaPosicaoAlocadaResponse> alocacoesResponse = alocacoes.stream()
-                .map(ReservaPosicaoAlocadaResponse::from)
-                .toList();
-
+    public static ReservaResponse from(
+            Reserva reserva,
+            List<ReservaPosicaoAlocadaResponse> alocacoes,
+            String avisoProximidade) {
         return new ReservaResponse(
                 reserva.getId(),
                 reserva.getSala().getId(),
@@ -49,7 +43,7 @@ public record ReservaResponse(
                 reserva.getStatus(),
                 reserva.getMotivoRejeicao(),
                 avisoProximidade,
-                alocacoesResponse
+                alocacoes
         );
     }
 }

@@ -182,6 +182,8 @@ export interface AlocacaoResponse {
   posicaoId: string;
   posicaoIdentificador: string;
   posicaoTipo?: string;
+  pessoaNome?: string;
+  equipamentos?: string[];
 }
 
 export interface ReservaResponse {

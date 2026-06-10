@@ -28,4 +28,14 @@ public interface ReservaPosicaoRepository extends JpaRepository<ReservaPosicao, 
             @Param("horaInicio") java.time.LocalTime horaInicio,
             @Param("horaFim") java.time.LocalTime horaFim,
             @Param("statuses") Collection<StatusReserva> statuses);
+
+    @Query("""
+            SELECT rp FROM ReservaPosicao rp
+            JOIN FETCH rp.posicao
+            JOIN FETCH rp.reservaPessoa rpessoa
+            LEFT JOIN FETCH rpessoa.usuario
+            WHERE rp.reserva.id = :reservaId
+            ORDER BY rp.createdAt ASC
+            """)
+    List<ReservaPosicao> findByReservaIdWithDetails(@Param("reservaId") UUID reservaId);
 }
