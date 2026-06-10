@@ -81,6 +81,11 @@ export function NovaReservaPage() {
     [tiposEquipamento],
   );
 
+  const salaSelecionada = useMemo(
+    () => salas.find((s) => s.id === salaId) ?? null,
+    [salas, salaId],
+  );
+
   const opcoesPessoas = useMemo(() => {
     if (isGestor && equipeSelecionada) {
       const map = new Map<string, UsuarioResumo>();
@@ -200,6 +205,11 @@ export function NovaReservaPage() {
       return;
     }
 
+    if (salaSelecionada && quantidadePessoas > salaSelecionada.capacidadeMaxima) {
+      setError(`A quantidade de pessoas excede a capacidade da sala (${salaSelecionada.capacidadeMaxima}).`);
+      return;
+    }
+
     if (horarioDia) {
       const abertura = toTimeInput(horarioDia.horaAbertura);
       const fechamento = toTimeInput(horarioDia.horaFechamento);
@@ -235,7 +245,11 @@ export function NovaReservaPage() {
       });
       navigate(`/reservas/${reserva.id}`);
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : 'Erro ao solicitar reserva');
+      if (err instanceof ApiException && err.status === 409) {
+        setError(`A IA não encontrou uma alocação válida: ${err.message}`);
+      } else {
+        setError(err instanceof ApiException ? err.message : 'Erro ao solicitar reserva');
+      }
     } finally {
       setLoading(false);
     }
@@ -362,6 +376,14 @@ export function NovaReservaPage() {
           {!horarioDia && dataReserva && salaId && (
             <Alert message="A sala não possui horário configurado para o dia selecionado." />
           )}
+
+          <div className="info-box">
+            <strong>Alocação automática por IA</strong>
+            <p>
+              Ao enviar a reserva, o backend valida sala, layout aprovado, disponibilidade e posições livres.
+              Depois aciona OpenRouter + Gemini Flash; se falhar, usa o algoritmo espacial local como fallback.
+            </p>
+          </div>
 
           <h3 className="section-title">Pessoas</h3>
           {pessoas.map((pessoa, index) => (

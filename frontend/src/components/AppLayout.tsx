@@ -41,6 +41,7 @@ export function AppLayout() {
               <NavLink to="/equipamentos">Equipamentos</NavLink>
               <NavLink to="/regras-disponibilidade">Disponibilidade</NavLink>
               <NavLink to="/usuarios">Usuários</NavLink>
+              <NavLink to="/ia-execucoes">IA Execuções</NavLink>
             </>
           )}
 

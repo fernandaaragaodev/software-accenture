@@ -503,3 +503,32 @@ tbody tr:hover { background: rgba(255,255,255,0.02); }
   .sidebar { position: relative; height: auto; }
   .main-content { padding: 1rem; }
 }
+
+.json-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.json-grid pre {
+  max-height: 360px;
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.06);
+  font-size: 0.8rem;
+}
+
+.info-box {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+}
+
+.info-box p {
+  margin: 0.35rem 0 0;
+  color: var(--muted, #64748b);
+}

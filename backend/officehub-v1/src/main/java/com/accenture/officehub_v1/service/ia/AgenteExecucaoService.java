@@ -5,6 +5,7 @@ import com.accenture.officehub_v1.entity.AgenteExecucao;
 import com.accenture.officehub_v1.entity.enums.StatusAgente;
 import com.accenture.officehub_v1.repository.AgenteExecucaoRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -32,12 +33,33 @@ public class AgenteExecucaoService {
             int tempoProcessamentoMs,
             StatusAgente status,
             String erroMensagem) {
+        return registrarExecucao(
+                tipoAgente,
+                versaoModelo,
+                payloadEntrada,
+                payloadSaida,
+                tempoProcessamentoMs,
+                status,
+                erroMensagem,
+                null);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AgenteExecucao registrarExecucao(
+            String tipoAgente,
+            String versaoModelo,
+            JsonNode payloadEntrada,
+            JsonNode payloadSaida,
+            int tempoProcessamentoMs,
+            StatusAgente status,
+            String erroMensagem,
+            Integer tokensUtilizados) {
 
         AgenteExecucao execucao = AgenteExecucao.builder()
                 .tipoAgente(tipoAgente)
                 .versaoModelo(versaoModelo)
                 .payloadEntrada(payloadEntrada)
-                .payloadSaida(payloadSaida)
+                .payloadSaida(enriquecerPayloadSaida(payloadSaida, tokensUtilizados))
                 .tempoProcessamentoMs(tempoProcessamentoMs)
                 .status(status)
                 .erroMensagem(erroMensagem)
@@ -45,6 +67,16 @@ public class AgenteExecucaoService {
                 .build();
 
         return agenteExecucaoRepository.save(execucao);
+    }
+
+    private JsonNode enriquecerPayloadSaida(JsonNode payloadSaida, Integer tokensUtilizados) {
+        if (tokensUtilizados == null || payloadSaida == null || !payloadSaida.isObject()) {
+            return payloadSaida;
+        }
+
+        ObjectNode enriquecido = payloadSaida.deepCopy();
+        enriquecido.put("tokensUtilizados", tokensUtilizados);
+        return enriquecido;
     }
 
     @Transactional
@@ -63,12 +95,33 @@ public class AgenteExecucaoService {
 
         OffsetDateTime inicio = dataInicio != null
                 ? dataInicio.atStartOfDay().atOffset(ZoneOffset.UTC)
-                : null;
-        OffsetDateTime fim = dataFim != null
-                ? dataFim.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC).minusNanos(1)
-                : null;
+                : OffsetDateTime.parse("2000-01-01T00:00:00Z");
 
-        return agenteExecucaoRepository.buscarComFiltros(tipoAgente, status, inicio, fim).stream()
+        OffsetDateTime fim = dataFim != null
+                ? dataFim.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)
+                : OffsetDateTime.parse("2100-01-01T00:00:00Z");
+
+        List<AgenteExecucao> execucoes;
+
+        if (tipoAgente != null && status != null) {
+            execucoes = agenteExecucaoRepository
+                    .findByTipoAgenteAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
+                            tipoAgente, status, inicio, fim);
+        } else if (tipoAgente != null) {
+            execucoes = agenteExecucaoRepository
+                    .findByTipoAgenteAndCreatedAtBetweenOrderByCreatedAtDesc(
+                            tipoAgente, inicio, fim);
+        } else if (status != null) {
+            execucoes = agenteExecucaoRepository
+                    .findByStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
+                            status, inicio, fim);
+        } else {
+            execucoes = agenteExecucaoRepository
+                    .findByCreatedAtBetweenOrderByCreatedAtDesc(
+                            inicio, fim);
+        }
+
+        return execucoes.stream()
                 .map(AgenteExecucaoResponse::from)
                 .toList();
     }

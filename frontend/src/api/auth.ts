@@ -9,6 +9,7 @@ import type {
 import { clearTokens, setTokens } from '../utils/auth';
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+  clearTokens();
   const response = await api.post<LoginResponse>('/auth/login', credentials);
   setTokens(response.accessToken, response.refreshToken);
   return response;

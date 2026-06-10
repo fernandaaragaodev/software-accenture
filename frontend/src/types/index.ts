@@ -4,6 +4,7 @@ export type StatusSala = 'ATIVA' | 'INATIVA' | 'MANUTENCAO';
 export type StatusReserva = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'CANCELADA';
 export type CriterioProximidade = 'OBRIGATORIA' | 'PREFERENCIAL';
 export type PosicaoSituacao = 'LIVRE' | 'OCUPADA' | 'INATIVA';
+export type StatusAgente = 'SUCESSO' | 'FALHA';
 
 export interface ApiError {
   timestamp: string;
@@ -284,6 +285,20 @@ export interface VincularEquipamentoPosicaoRequest {
   tipoEquipamentoId: string;
   quantidade: number;
   observacao?: string;
+}
+
+
+export interface AgenteExecucaoResponse {
+  id: string;
+  tipoAgente: string;
+  referenciaId?: string;
+  status: StatusAgente;
+  versaoModelo: string;
+  tempoProcessamentoMs?: number;
+  erroMensagem?: string;
+  payloadEntrada?: unknown;
+  payloadSaida?: unknown;
+  executadoEm: string;
 }
 
 export interface DashboardStatsResponse {

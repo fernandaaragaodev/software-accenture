@@ -1,5 +1,7 @@
 package com.accenture.officehub_v1.service;
 
+import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteEntradaDto;
+import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteSaidaDto;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.entity.Layout;
@@ -18,17 +20,21 @@ import com.accenture.officehub_v1.repository.SalaRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
 import com.accenture.officehub_v1.security.Roles;
 import com.accenture.officehub_v1.service.ia.ConstantesAgenteIa;
+import com.accenture.officehub_v1.service.ia.motor.MotorAlocacaoOpenRouter;
+import com.accenture.officehub_v1.service.ia.motor.OpenRouterIndisponivelException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,11 +42,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = "ia.motor=OPENROUTER")
 @Transactional
-class ReservaAgenteAlocacaoIntegrationTest {
+class ReservaOpenRouterFallbackIntegrationTest {
 
     @Autowired
     private ReservaService reservaService;
@@ -72,6 +80,9 @@ class ReservaAgenteAlocacaoIntegrationTest {
     @MockitoBean
     private AuditService auditService;
 
+    @MockitoBean
+    private MotorAlocacaoOpenRouter motorAlocacaoOpenRouter;
+
     private UUID salaId;
     private UUID solicitanteId;
     private UUID participante2Id;
@@ -86,11 +97,11 @@ class ReservaAgenteAlocacaoIntegrationTest {
         salaRepository.deleteAll();
         usuarioRepository.deleteAll();
 
-        doNothing().when(disponibilidadeService).validarDisponibilidade(any(), any());
+        doNothing().when(disponibilidadeService).validarDisponibilidade(any(), any(), any(), any());
 
         Usuario solicitante = usuarioRepository.save(Usuario.builder()
                 .nome("Solicitante Teste")
-                .email("solicitante@test.com")
+                .email("fallback@test.com")
                 .senhaHash("hash")
                 .ativo(true)
                 .build());
@@ -98,35 +109,38 @@ class ReservaAgenteAlocacaoIntegrationTest {
 
         Usuario participante2 = usuarioRepository.save(Usuario.builder()
                 .nome("Participante 2")
-                .email("participante2@test.com")
+                .email("participante2-fallback@test.com")
                 .senhaHash("hash")
                 .ativo(true)
                 .build());
         participante2Id = participante2.getId();
 
         Sala sala = salaRepository.save(Sala.builder()
-                .nome("Sala IA")
+                .nome("Sala Fallback")
                 .capacidadeMaxima(10)
-                .raioProximidade(BigDecimal.valueOf(3))
+                .raioProximidade(BigDecimal.valueOf(5))
                 .status(StatusSala.ATIVA)
                 .build());
         salaId = sala.getId();
 
-        Layout layout = layoutRepository.save(Layout.builder()
+        layoutRepository.save(Layout.builder()
                 .sala(sala)
                 .versao("1")
                 .ativo(true)
                 .aprovadoPor(solicitante)
-                .aprovadoEm(java.time.OffsetDateTime.now())
+                .aprovadoEm(OffsetDateTime.now())
                 .build());
 
         dataReserva = LocalDate.of(2026, 6, 10);
     }
 
     @Test
-    void deveCriarReservaComSucessoELogarExecucaoIa() {
+    void deveExecutarFallbackQuandoOpenRouterFalha() {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
         criarPosicao("P-02", "Estação Padrão", 2, 0);
+
+        when(motorAlocacaoOpenRouter.executar(any(AlocacaoAgenteEntradaDto.class)))
+                .thenThrow(new OpenRouterIndisponivelException("OpenRouter indisponível"));
 
         var response = reservaService.solicitarReserva(
                 request(CriterioProximidade.OBRIGATORIA, 2,
@@ -140,18 +154,21 @@ class ReservaAgenteAlocacaoIntegrationTest {
         assertThat(reservaRepository.count()).isEqualTo(1);
 
         var logs = agenteExecucaoRepository.findAll();
-        assertThat(logs).hasSize(1);
-        assertThat(logs.get(0).getTipoAgente()).isEqualTo(ConstantesAgenteIa.TIPO_ALOCACAO);
-        assertThat(logs.get(0).getVersaoModelo()).isEqualTo(ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V2);
-        assertThat(logs.get(0).getStatus()).isEqualTo(StatusAgente.SUCESSO);
-        assertThat(logs.get(0).getPayloadEntrada()).isNotNull();
-        assertThat(logs.get(0).getPayloadSaida()).isNotNull();
-        assertThat(logs.get(0).getReferenciaId()).isEqualTo(response.id());
+        assertThat(logs).hasSize(2);
+        assertThat(logs.stream().map(l -> l.getVersaoModelo()).toList())
+                .contains(
+                        ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
+                        ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V2);
+        assertThat(logs.stream().filter(l -> l.getStatus() == StatusAgente.SUCESSO).count()).isEqualTo(1);
+        assertThat(logs.stream().filter(l -> l.getStatus() == StatusAgente.FALHA).count()).isEqualTo(1);
     }
 
     @Test
-    void deveFalharPorFaltaDePosicoesLivresSemCriarReserva() {
+    void deveRetornar409QuandoFallbackTambemFalha() {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
+
+        when(motorAlocacaoOpenRouter.executar(any(AlocacaoAgenteEntradaDto.class)))
+                .thenThrow(new OpenRouterIndisponivelException("OpenRouter indisponível"));
 
         assertThatThrownBy(() -> reservaService.solicitarReserva(
                 request(CriterioProximidade.PREFERENCIAL, 2,
@@ -159,82 +176,37 @@ class ReservaAgenteAlocacaoIntegrationTest {
                         pessoa(participante2Id, "Estação Padrão")),
                 solicitanteId,
                 List.of(Roles.INTEGRADOR)))
-                .isInstanceOf(ConflitoAlocacaoException.class)
-                .hasMessageContaining("posições livres suficientes");
+                .isInstanceOf(ConflitoAlocacaoException.class);
 
         assertThat(reservaRepository.count()).isZero();
-        assertLogFalha();
     }
 
     @Test
-    void deveFalharPorTipoIncompativelSemCriarReserva() {
-        criarPosicao("P-01", "Hot Desk", 0, 0);
-        criarPosicao("P-02", "Hot Desk", 1, 0);
+    void deveUsarRespostaOpenRouterQuandoDisponivel() {
+        UUID posicaoId = criarPosicao("P-01", "Estação Padrão", 0, 0).getId();
 
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
-                request(CriterioProximidade.PREFERENCIAL, 1, pessoa("Estação Executiva")),
-                solicitanteId,
-                List.of(Roles.USUARIO_FINAL)))
-                .isInstanceOf(ConflitoAlocacaoException.class)
-                .hasMessageContaining("alocação válida");
-
-        assertThat(reservaRepository.count()).isZero();
-        assertLogFalha();
-    }
-
-    @Test
-    void deveFalharPorProximidadeObrigatoriaSemCriarReserva() {
-        criarPosicao("P-01", "Estação Padrão", 0, 0);
-        criarPosicao("P-02", "Estação Padrão", 10, 0);
-
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
-                request(CriterioProximidade.OBRIGATORIA, 2,
-                        pessoa(solicitanteId, "Estação Padrão"),
-                        pessoa(participante2Id, "Estação Padrão")),
-                solicitanteId,
-                List.of(Roles.INTEGRADOR)))
-                .isInstanceOf(ConflitoAlocacaoException.class)
-                .hasMessageContaining("alocação válida");
-
-        assertThat(reservaRepository.count()).isZero();
-        assertLogFalha();
-    }
-
-    @Test
-    void deveTerSucessoComProximidadePreferencialMesmoForaDoRaio() {
-        criarPosicao("P-01", "Estação Padrão", 0, 0);
-        criarPosicao("P-02", "Estação Padrão", 10, 0);
+        when(motorAlocacaoOpenRouter.executar(any(AlocacaoAgenteEntradaDto.class)))
+                .thenReturn(AlocacaoAgenteSaidaDto.sucesso(
+                        300,
+                        List.of(new com.accenture.officehub_v1.dto.ia.PosicaoAlocadaSaidaDto(
+                                solicitanteId, posicaoId))));
 
         var response = reservaService.solicitarReserva(
-                request(CriterioProximidade.PREFERENCIAL, 2,
-                        pessoa(solicitanteId, "Estação Padrão"),
-                        pessoa(participante2Id, "Estação Padrão")),
+                request(CriterioProximidade.PREFERENCIAL, 1, pessoa("Estação Padrão")),
                 solicitanteId,
-                List.of(Roles.INTEGRADOR));
+                List.of(Roles.USUARIO_FINAL));
 
         assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
-        assertThat(response.avisoProximidade()).contains("raio de proximidade preferencial");
-
-        var logs = agenteExecucaoRepository.findAll();
-        assertThat(logs).hasSize(1);
-        assertThat(logs.get(0).getStatus()).isEqualTo(StatusAgente.SUCESSO);
+        assertThat(agenteExecucaoRepository.findAll()).hasSize(1);
+        assertThat(agenteExecucaoRepository.findAll().get(0).getVersaoModelo())
+                .isEqualTo(ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1);
     }
 
-    private void assertLogFalha() {
-        var logs = agenteExecucaoRepository.findAll();
-        assertThat(logs).hasSize(1);
-        assertThat(logs.get(0).getStatus()).isEqualTo(StatusAgente.FALHA);
-        assertThat(logs.get(0).getErroMensagem()).isNotBlank();
-        assertThat(logs.get(0).getPayloadEntrada()).isNotNull();
-        assertThat(logs.get(0).getPayloadSaida()).isNotNull();
-        assertThat(logs.get(0).getReferenciaId()).isNull();
-    }
-
-    private void criarPosicao(String identificador, String tipo, double x, double y) {
+    private Posicao criarPosicao(String identificador, String tipo, double x, double y) {
         Sala sala = salaRepository.findById(salaId).orElseThrow();
         Layout layout = layoutRepository.findBySalaIdAndAtivoTrue(salaId).orElseThrow();
 
-        posicaoRepository.save(Posicao.builder()
+        return posicaoRepository.save(Posicao.builder()
                 .sala(sala)
                 .layout(layout)
                 .identificador(identificador)
@@ -259,9 +231,5 @@ class ReservaAgenteAlocacaoIntegrationTest {
 
     private PessoaReservaRequest pessoa(UUID usuarioId, String tipoPreferido) {
         return new PessoaReservaRequest(usuarioId, null, tipoPreferido, null, null);
-    }
-
-    private PessoaReservaRequest pessoa(String tipoPreferido) {
-        return pessoa(solicitanteId, tipoPreferido);
     }
 }

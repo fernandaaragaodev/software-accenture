@@ -114,8 +114,14 @@ public class PosicaoService {
     }
 
     public List<Posicao> listarPosicoesAtivasDaSala(UUID salaId) {
+        Layout layoutAtivo = layoutRepository.findBySalaIdAndAtivoTrue(salaId).orElse(null);
+        if (layoutAtivo == null) {
+            return List.of();
+        }
+
         return posicaoRepository.findBySalaIdAndDeletedAtIsNull(salaId).stream()
                 .filter(p -> PosicaoStatus.ATIVA.equals(p.getStatus()))
+                .filter(p -> p.getLayout() != null && layoutAtivo.getId().equals(p.getLayout().getId()))
                 .toList();
     }
 

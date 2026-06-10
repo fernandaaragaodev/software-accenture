@@ -2,151 +2,234 @@ package com.accenture.officehub_v1.service.ia;
 
 import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteEntradaDto;
 import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteSaidaDto;
-import com.accenture.officehub_v1.dto.ia.PessoaAlocacaoEntradaDto;
 import com.accenture.officehub_v1.dto.ia.PosicaoAlocadaSaidaDto;
-import com.accenture.officehub_v1.dto.ia.PosicaoLivreEntradaDto;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
+import com.accenture.officehub_v1.entity.AgenteExecucao;
 import com.accenture.officehub_v1.entity.Posicao;
+import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.enums.StatusAgente;
-import com.accenture.officehub_v1.service.AlocacaoPosicaoService;
 import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
+import com.accenture.officehub_v1.service.ia.motor.MotorAlocacao;
+import com.accenture.officehub_v1.service.ia.motor.MotorAlocacaoFactory;
+import com.accenture.officehub_v1.service.ia.motor.OpenRouterIndisponivelException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Stream;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AgenteAlocacaoService {
 
-    private final AlocacaoPosicaoService alocacaoPosicaoService;
+    private static final Logger log = LoggerFactory.getLogger(AgenteAlocacaoService.class);
+
+    private final MotorAlocacaoFactory motorAlocacaoFactory;
+    private final AlocacaoEntradaBuilder alocacaoEntradaBuilder;
     private final AgenteExecucaoService agenteExecucaoService;
     private final ObjectMapper objectMapper;
 
     public ResultadoExecucaoAgente executar(
-            UUID salaId,
+            Sala sala,
             LocalDate dataReserva,
+            UUID equipeId,
             List<PessoaReservaRequest> pessoas,
             String criterioProximidade,
-            BigDecimal raioProximidade,
             List<Posicao> posicoesLivres) {
 
-        AlocacaoAgenteEntradaDto entrada = montarEntrada(
-                salaId,
+        AlocacaoAgenteEntradaDto entrada = alocacaoEntradaBuilder.montar(
+                sala,
                 dataReserva,
+                equipeId,
                 pessoas,
                 criterioProximidade,
-                raioProximidade,
                 posicoesLivres);
 
-        long inicio = System.nanoTime();
-        ResultadoAlocacao resultado = alocacaoPosicaoService.alocar(
-                pessoas,
-                posicoesLivres,
-                criterioProximidade,
-                raioProximidade);
-        int tempoMs = (int) ((System.nanoTime() - inicio) / 1_000_000L);
-
-        AlocacaoAgenteSaidaDto saida = montarSaida(resultado);
-        JsonNode payloadEntrada = objectMapper.valueToTree(entrada);
-        JsonNode payloadSaida = objectMapper.valueToTree(saida);
-
-        StatusAgente status = resultado.sucesso() ? StatusAgente.SUCESSO : StatusAgente.FALHA;
-        String erro = resultado.sucesso() ? null : resultado.motivoFalha();
-
-        var execucao = agenteExecucaoService.registrarExecucao(
-                ConstantesAgenteIa.TIPO_ALOCACAO,
-                ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V1,
-                payloadEntrada,
-                payloadSaida,
-                tempoMs,
-                status,
-                erro);
-
-        return new ResultadoExecucaoAgente(resultado, execucao.getId());
+        ExecucaoMotorResultado execucao = executarComFallback(entrada, pessoas, posicoesLivres);
+        return new ResultadoExecucaoAgente(execucao.resultadoAlocacao(), execucao.execucaoId());
     }
 
     public void vincularReferenciaReserva(UUID execucaoId, UUID reservaId) {
         agenteExecucaoService.vincularReferencia(execucaoId, reservaId);
     }
 
-    private AlocacaoAgenteEntradaDto montarEntrada(
-            UUID salaId,
-            LocalDate dataReserva,
+    private ExecucaoMotorResultado executarComFallback(
+            AlocacaoAgenteEntradaDto entrada,
             List<PessoaReservaRequest> pessoas,
-            String criterioProximidade,
-            BigDecimal raioProximidade,
             List<Posicao> posicoesLivres) {
 
-        List<PessoaAlocacaoEntradaDto> pessoasEntrada = pessoas.stream()
-                .map(p -> new PessoaAlocacaoEntradaDto(
-                        p.usuarioId(),
-                        p.nomeExterno(),
-                        tiposCompativeis(p)))
-                .toList();
-
-        List<PosicaoLivreEntradaDto> posicoesEntrada = posicoesLivres.stream()
-                .map(p -> new PosicaoLivreEntradaDto(
-                        p.getId(),
-                        p.getTipo(),
-                        p.getCoordX(),
-                        p.getCoordY()))
-                .toList();
-
-        return new AlocacaoAgenteEntradaDto(
-                salaId,
-                dataReserva,
-                criterioProximidade,
-                raioProximidade,
-                pessoasEntrada,
-                posicoesEntrada);
-    }
-
-    private AlocacaoAgenteSaidaDto montarSaida(ResultadoAlocacao resultado) {
-        if (!resultado.sucesso()) {
-            return new AlocacaoAgenteSaidaDto(
-                    false,
-                    resultado.motivoFalha(),
-                    null,
-                    List.of());
+        if (motorAlocacaoFactory.usaOpenRouterComoPrincipal()) {
+            return executarOpenRouterComFallback(entrada, pessoas, posicoesLivres);
         }
 
-        List<PosicaoAlocadaSaidaDto> alocacoes = resultado.alocacoes().stream()
-                .map(this::mapearAlocacao)
-                .toList();
-
-        return new AlocacaoAgenteSaidaDto(
-                true,
-                null,
-                resultado.avisoProximidade(),
-                alocacoes);
+        return executarMotor(
+                motorAlocacaoFactory.obterMotorPrincipal(),
+                ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V2,
+                entrada,
+                pessoas,
+                posicoesLivres,
+                false);
     }
 
-    private PosicaoAlocadaSaidaDto mapearAlocacao(ItemAlocacao item) {
-        return new PosicaoAlocadaSaidaDto(
-                item.posicao().getId(),
-                item.posicao().getIdentificador(),
-                item.posicao().getTipo(),
-                item.pessoa().usuarioId(),
-                item.pessoa().nomeExterno());
+    private ExecucaoMotorResultado executarOpenRouterComFallback(
+            AlocacaoAgenteEntradaDto entrada,
+            List<PessoaReservaRequest> pessoas,
+            List<Posicao> posicoesLivres) {
+
+        MotorAlocacao openRouter = motorAlocacaoFactory.obterMotorPrincipal();
+
+        try {
+            long inicio = System.nanoTime();
+            AlocacaoAgenteSaidaDto saida = openRouter.executar(entrada);
+            int tempoMs = (int) ((System.nanoTime() - inicio) / 1_000_000L);
+
+            if (!saida.sucesso()) {
+                log.warn("OpenRouter retornou falha de alocação: {}. Acionando fallback espacial.",
+                        saida.motivoFalha());
+                registrarExecucao(
+                        ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
+                        entrada,
+                        saida,
+                        tempoMs,
+                        StatusAgente.FALHA,
+                        saida.motivoFalha());
+
+                return executarMotor(
+                        motorAlocacaoFactory.obterMotorFallback(),
+                        ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V2,
+                        entrada,
+                        pessoas,
+                        posicoesLivres,
+                        true);
+            }
+
+            var execucao = registrarExecucao(
+                    ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
+                    entrada,
+                    saida,
+                    tempoMs,
+                    StatusAgente.SUCESSO,
+                    null);
+
+            return new ExecucaoMotorResultado(
+                    converterParaResultado(saida, pessoas, posicoesLivres),
+                    execucao.getId());
+        } catch (OpenRouterIndisponivelException ex) {
+            log.error("Falha no OpenRouter. Executando fallback espacial. Motivo: {}", ex.getMessage());
+
+            registrarExecucaoFalhaOpenRouter(entrada, ex.getMessage());
+
+            return executarMotor(
+                    motorAlocacaoFactory.obterMotorFallback(),
+                    ConstantesAgenteIa.VERSAO_ALGORITMO_ESPACIAL_V2,
+                    entrada,
+                    pessoas,
+                    posicoesLivres,
+                    true);
+        }
     }
 
-    private List<String> tiposCompativeis(PessoaReservaRequest pessoa) {
-        List<String> tipos = new ArrayList<>();
-        Stream.of(pessoa.tipoPreferido1(), pessoa.tipoPreferido2(), pessoa.tipoPreferido3())
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .forEach(tipos::add);
-        return tipos;
+    private ExecucaoMotorResultado executarMotor(
+            MotorAlocacao motor,
+            String versaoModelo,
+            AlocacaoAgenteEntradaDto entrada,
+            List<PessoaReservaRequest> pessoas,
+            List<Posicao> posicoesLivres,
+            boolean fallback) {
+
+        long inicio = System.nanoTime();
+        AlocacaoAgenteSaidaDto saida = motor.executar(entrada);
+        int tempoMs = (int) ((System.nanoTime() - inicio) / 1_000_000L);
+
+        StatusAgente status = saida.sucesso() ? StatusAgente.SUCESSO : StatusAgente.FALHA;
+        String erro = saida.sucesso() ? null : saida.motivoFalha();
+
+        if (fallback && saida.sucesso()) {
+            log.info("Fallback espacial concluiu alocação com sucesso.");
+        }
+
+        var execucao = registrarExecucao(versaoModelo, entrada, saida, tempoMs, status, erro);
+
+        return new ExecucaoMotorResultado(
+                converterParaResultado(saida, pessoas, posicoesLivres),
+                execucao.getId());
+    }
+
+    private void registrarExecucaoFalhaOpenRouter(AlocacaoAgenteEntradaDto entrada, String mensagemErro) {
+        AlocacaoAgenteSaidaDto saidaFalha = AlocacaoAgenteSaidaDto.falha(mensagemErro);
+        registrarExecucao(
+                ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
+                entrada,
+                saidaFalha,
+                0,
+                StatusAgente.FALHA,
+                mensagemErro);
+    }
+
+    private AgenteExecucao registrarExecucao(
+            String versaoModelo,
+            AlocacaoAgenteEntradaDto entrada,
+            AlocacaoAgenteSaidaDto saida,
+            int tempoMs,
+            StatusAgente status,
+            String erro) {
+
+        JsonNode payloadEntrada = objectMapper.valueToTree(entrada);
+        JsonNode payloadSaida = objectMapper.valueToTree(saida);
+
+        return agenteExecucaoService.registrarExecucao(
+                ConstantesAgenteIa.TIPO_ALOCACAO,
+                versaoModelo,
+                payloadEntrada,
+                payloadSaida,
+                tempoMs,
+                status,
+                erro,
+                saida.tokensUtilizados());
+    }
+
+    private ResultadoAlocacao converterParaResultado(
+            AlocacaoAgenteSaidaDto saida,
+            List<PessoaReservaRequest> pessoas,
+            List<Posicao> posicoesLivres) {
+
+        if (!saida.sucesso()) {
+            return ResultadoAlocacao.falha(saida.motivoFalha());
+        }
+
+        Map<UUID, PessoaReservaRequest> pessoasPorId = pessoas.stream()
+                .filter(p -> p.usuarioId() != null)
+                .collect(Collectors.toMap(PessoaReservaRequest::usuarioId, Function.identity()));
+
+        Map<UUID, Posicao> posicoesPorId = posicoesLivres.stream()
+                .collect(Collectors.toMap(Posicao::getId, Function.identity()));
+
+        List<ItemAlocacao> itens = new ArrayList<>();
+
+        for (PosicaoAlocadaSaidaDto alocacao : saida.alocacoes()) {
+            PessoaReservaRequest pessoa = pessoasPorId.get(alocacao.pessoaId());
+            Posicao posicao = posicoesPorId.get(alocacao.posicaoId());
+
+            if (pessoa == null || posicao == null) {
+                return ResultadoAlocacao.falha("Alocação retornada com referências inválidas.");
+            }
+
+            itens.add(new ItemAlocacao(pessoa, posicao));
+        }
+
+        return ResultadoAlocacao.sucesso(itens, saida.avisoProximidade());
+    }
+
+    private record ExecucaoMotorResultado(ResultadoAlocacao resultadoAlocacao, UUID execucaoId) {
     }
 }

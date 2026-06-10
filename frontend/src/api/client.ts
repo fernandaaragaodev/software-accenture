@@ -1,7 +1,7 @@
 import type { ApiError, LoginResponse, RefreshTokenRequest } from '../types';
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from '../utils/auth';
 
-const API_BASE = '/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 
 export class ApiException extends Error {
   status: number;
@@ -49,18 +49,23 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
+function isAuthEndpoint(path: string): boolean {
+  return path.startsWith('/auth/login') || path.startsWith('/auth/refresh');
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
   retry = true,
 ): Promise<T> {
   const headers = new Headers(options.headers);
+
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json');
   }
 
   const token = getAccessToken();
-  if (token) {
+  if (token && !isAuthEndpoint(path)) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
@@ -69,16 +74,21 @@ export async function apiRequest<T>(
     headers,
   });
 
-  if (response.status === 401 && retry && getRefreshToken()) {
+  if (response.status === 401 && retry && !isAuthEndpoint(path) && getRefreshToken()) {
     if (!refreshPromise) {
       refreshPromise = refreshAccessToken().finally(() => {
         refreshPromise = null;
       });
     }
+
     const refreshed = await refreshPromise;
     if (refreshed) {
       return apiRequest<T>(path, options, false);
     }
+  }
+
+  if (response.status === 401 && !isAuthEndpoint(path)) {
+    clearTokens();
   }
 
   if (response.status === 204) {

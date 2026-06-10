@@ -3,28 +3,51 @@ import type { JwtPayload, Role } from '../types';
 const ACCESS_TOKEN_KEY = 'officehub_access_token';
 const REFRESH_TOKEN_KEY = 'officehub_refresh_token';
 
+const LEGACY_ACCESS_TOKEN_KEYS = ['accessToken', 'sgsp_accessToken', 'sgsp_token', 'token'];
+const LEGACY_REFRESH_TOKEN_KEYS = ['refreshToken', 'sgsp_refreshToken'];
+
+function readFirst(keys: string[]): string | null {
+  for (const key of keys) {
+    const value = localStorage.getItem(key);
+    if (value && value !== 'undefined' && value !== 'null') return value;
+  }
+  return null;
+}
+
 export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return readFirst([ACCESS_TOKEN_KEY, ...LEGACY_ACCESS_TOKEN_KEYS]);
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return readFirst([REFRESH_TOKEN_KEY, ...LEGACY_REFRESH_TOKEN_KEYS]);
 }
 
 export function setTokens(accessToken: string, refreshToken: string): void {
+  clearTokens();
+
   localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+
+  // Compatibilidade com arquivos antigos do projeto que ainda possam ler estas chaves.
+  localStorage.setItem('accessToken', accessToken);
+  localStorage.setItem('refreshToken', refreshToken);
 }
 
 export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  [
+    ACCESS_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    ...LEGACY_ACCESS_TOKEN_KEYS,
+    ...LEGACY_REFRESH_TOKEN_KEYS,
+  ].forEach((key) => localStorage.removeItem(key));
 }
 
 export function decodeJwt(token: string): JwtPayload | null {
   try {
     const payload = token.split('.')[1];
-    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const decoded = atob(padded);
     return JSON.parse(decoded) as JwtPayload;
   } catch {
     return null;

@@ -7,6 +7,7 @@ import com.accenture.officehub_v1.entity.Layout;
 import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.Usuario;
 import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
+import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.LayoutRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,12 +43,24 @@ public class LayoutService {
 
     public LayoutResponse buscarLayoutAtivo(UUID salaId) {
         salaService.buscarEntidadeAtiva(salaId);
+        return LayoutResponse.from(buscarLayoutAtivoEntidade(salaId));
+    }
 
-        Layout layout = layoutRepository.findBySalaIdAndAtivoTrue(salaId)
-                .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "Nenhum layout ativo encontrado para esta sala."));
+    public void validarLayoutAtivoAprovado(UUID salaId) {
+        Layout layout = buscarLayoutAtivoEntidade(salaId);
 
-        return LayoutResponse.from(layout);
+        if (layout.getAprovadoPor() == null || layout.getAprovadoEm() == null) {
+            throw new RegraNegocioException(
+                    "A sala não possui layout ativo e aprovado para alocação de posições.");
+        }
+    }
+
+    public Layout buscarLayoutAtivoEntidade(UUID salaId) {
+        salaService.buscarEntidadeAtiva(salaId);
+
+        return layoutRepository.findBySalaIdAndAtivoTrue(salaId)
+                .orElseThrow(() -> new RegraNegocioException(
+                        "A sala não possui layout ativo para alocação de posições."));
     }
 
     @Transactional

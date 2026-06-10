@@ -33,5 +33,6 @@ public interface EquipeRepository extends JpaRepository<Equipe, UUID> {
             """)
     List<Equipe> findAtivasPorMembro(@Param("usuarioId") UUID usuarioId);
 
-    long countByDeletedAtIsNull();
+    @Query("SELECT COUNT(e) FROM Equipe e")
+    long countAllEquipes();
 }

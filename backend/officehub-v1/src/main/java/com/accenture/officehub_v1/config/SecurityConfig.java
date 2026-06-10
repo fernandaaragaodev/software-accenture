@@ -41,6 +41,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register")
@@ -103,7 +105,8 @@ public class SecurityConfig {
                                 "/api/v1/salas/**",
                                 "/api/v1/posicoes/**",
                                 "/api/v1/tipos-equipamento/**",
-                                "/api/v1/layouts/**")
+                                "/api/v1/layouts/**",
+                                "/api/v1/ia/**")
                         .hasAuthority(Roles.ADMIN_SALA)
                         .anyRequest().authenticated())
                 .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)

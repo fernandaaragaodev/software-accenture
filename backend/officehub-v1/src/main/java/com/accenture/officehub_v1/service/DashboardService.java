@@ -35,7 +35,7 @@ public class DashboardService {
                 tipoEquipamentoRepository.countByAtivoTrue(),
                 posicaoEquipamentoRepository.somarQuantidadeTotal(),
                 usuarioRepository.countByDeletedAtIsNullAndAtivoTrue(),
-                equipeRepository.countByDeletedAtIsNull(),
+                equipeRepository.countAllEquipes(),
                 reservaRepository.countByDeletedAtIsNull(),
                 reservaRepository.countByDeletedAtIsNullAndStatus(StatusReserva.CONFIRMADA),
                 reservaRepository.countByDeletedAtIsNullAndStatus(StatusReserva.PENDENTE),

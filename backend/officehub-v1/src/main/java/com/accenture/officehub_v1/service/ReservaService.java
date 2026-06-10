@@ -53,6 +53,7 @@ public class ReservaService {
     private final PosicaoService posicaoService;
     private final NotificacaoService notificacaoService;
     private final AgenteAlocacaoService agenteAlocacaoService;
+    private final LayoutService layoutService;
     private final AuditService auditService;
     private final ReservaAutorizacaoService reservaAutorizacaoService;
 
@@ -71,11 +72,11 @@ public class ReservaService {
                 request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
 
         ResultadoExecucaoAgente execucaoIa = agenteAlocacaoService.executar(
-                request.salaId(),
+                sala,
                 request.dataReserva(),
+                request.equipeId(),
                 request.pessoas(),
                 request.criterioProximidade(),
-                sala.getRaioProximidade(),
                 posicoesLivres);
 
         ResultadoAlocacao resultado = execucaoIa.resultadoAlocacao();
@@ -185,6 +186,7 @@ public class ReservaService {
     private Sala validarPreCondicoesReserva(SolicitarReservaRequest request) {
         Sala sala = salaService.buscarEntidadeAtiva(request.salaId());
         salaService.validarSalaAtiva(request.salaId());
+        layoutService.validarLayoutAtivoAprovado(request.salaId());
         disponibilidadeService.validarDisponibilidade(
                 request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
         return sala;
