@@ -11,12 +11,15 @@ import type { ReservaResponse } from '../../types';
 export function ReservaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { hasRole } = useAuth();
+  const isAdmin = hasRole('ADMIN_SALA');
   const [reserva, setReserva] = useState<ReservaResponse | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [motivo, setMotivo] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const voltarPara = isAdmin ? '/admin/reservas' : '/reservas';
 
   useEffect(() => {
     if (!id) return;
@@ -81,14 +84,16 @@ export function ReservaDetailPage() {
     return <Alert message={error || 'Reserva não encontrada'} />;
   }
 
-  const canManage = hasRole('GESTOR_RESERVAS') && reserva.status === 'PENDENTE';
-  const canCancel = reserva.status === 'CONFIRMADA' || reserva.status === 'PENDENTE';
+  const canManage = hasRole('GESTOR_RESERVAS') && !isAdmin && reserva.status === 'PENDENTE';
+  const canCancel =
+    (reserva.status === 'CONFIRMADA' || reserva.status === 'PENDENTE') &&
+    (isAdmin || !canManage);
 
   return (
     <div>
       <PageHeader
         title={`Reserva ${reserva.id.slice(0, 8)}...`}
-        action={<Link to="/reservas" className="btn btn-ghost">Voltar</Link>}
+        action={<Link to={voltarPara} className="btn btn-ghost">Voltar</Link>}
       />
       <Alert message={error} />
       <Alert type="success" message={success} />
@@ -96,16 +101,23 @@ export function ReservaDetailPage() {
       <div className="card">
         <dl className="detail-list">
           <div><dt>Status</dt><dd><StatusBadge status={reserva.status} /></dd></div>
+          <div><dt>Sala</dt><dd>{reserva.salaNome ?? reserva.salaId}</dd></div>
+          <div><dt>Solicitante</dt><dd>{reserva.solicitanteNome ?? reserva.solicitanteId}</dd></div>
           <div><dt>Data</dt><dd>{reserva.dataReserva}</dd></div>
           <div><dt>Horário</dt><dd>{reserva.horaInicio?.slice(0, 5)} – {reserva.horaFim?.slice(0, 5)}</dd></div>
           <div><dt>Pessoas</dt><dd>{reserva.quantidadePessoas}</dd></div>
           <div><dt>Proximidade</dt><dd>{reserva.criterioProximidade}</dd></div>
-          <div><dt>Sala ID</dt><dd className="mono">{reserva.salaId}</dd></div>
           {reserva.avisoProximidade && (
             <div><dt>Aviso</dt><dd className="warning-text">{reserva.avisoProximidade}</dd></div>
           )}
           {reserva.motivoRejeicao && (
             <div><dt>Motivo rejeição</dt><dd>{reserva.motivoRejeicao}</dd></div>
+          )}
+          {reserva.motivoCancelamento && (
+            <div><dt>Motivo cancelamento</dt><dd>{reserva.motivoCancelamento}</dd></div>
+          )}
+          {reserva.canceladoPorNome && (
+            <div><dt>Cancelado por</dt><dd>{reserva.canceladoPorNome}</dd></div>
           )}
         </dl>
 
@@ -164,9 +176,9 @@ export function ReservaDetailPage() {
         </div>
       )}
 
-      {canCancel && !canManage && (
+      {canCancel && (
         <div className="card mt-lg">
-          <h3>Cancelar reserva</h3>
+          <h3>{isAdmin ? 'Cancelar reserva (admin)' : 'Cancelar reserva'}</h3>
           <form onSubmit={handleCancelar} className="form">
             <label>
               Motivo

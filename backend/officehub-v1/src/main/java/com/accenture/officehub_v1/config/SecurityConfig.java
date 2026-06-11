@@ -79,10 +79,21 @@ public class SecurityConfig {
                                 Roles.USUARIO_FINAL,
                                 Roles.INTEGRADOR,
                                 Roles.GESTOR_RESERVAS)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/reservas")
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers(HttpMethod.GET, "/api/v1/reservas/*")
-                        .hasAnyAuthority(Roles.USUARIO_FINAL, Roles.GESTOR_RESERVAS)
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/reservas/*")
-                        .hasAnyAuthority(Roles.USUARIO_FINAL, Roles.GESTOR_RESERVAS)
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.GESTOR_RESERVAS,
+                                Roles.ADMIN_SALA)
                         .requestMatchers("/api/v1/reservas/**")
                         .hasAuthority(Roles.GESTOR_RESERVAS)
                         .requestMatchers("/api/v1/relatorios/**")

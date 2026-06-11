@@ -32,8 +32,18 @@ export const salasApi = {
     api.put<RegraDisponibilidadeResponse>(`/salas/${salaId}/regra-disponibilidade`, data),
   desatribuirRegra: (salaId: string) =>
     api.delete<void>(`/salas/${salaId}/regra-disponibilidade`),
-  consultarDisponibilidade: (salaId: string, data: string) =>
-    api.get<ConsultaDisponibilidadeResponse>(`/salas/${salaId}/disponibilidade?data=${data}`),
+  consultarDisponibilidade: (
+    salaId: string,
+    data: string,
+    horaInicio: string,
+    horaFim: string,
+  ) => {
+    const inicio = horaInicio.length === 5 ? `${horaInicio}:00` : horaInicio;
+    const fim = horaFim.length === 5 ? `${horaFim}:00` : horaFim;
+    return api.get<ConsultaDisponibilidadeResponse>(
+      `/salas/${salaId}/disponibilidade?data=${data}&horaInicio=${inicio}&horaFim=${fim}`,
+    );
+  },
   criarExcecao: (salaId: string, data: ExcecaoDisponibilidadeRequest) =>
     api.post<void>(`/salas/${salaId}/excecoes-disponibilidade`, data),
 };

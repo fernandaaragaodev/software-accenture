@@ -3,6 +3,7 @@ package com.accenture.officehub_v1.controller;
 import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
+import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.ReservaService;
@@ -23,8 +24,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -55,6 +60,17 @@ public class ReservaController {
                 solicitanteId,
                 SecurityUtils.getPerfisAtuais());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ReservaResumoResponse>> listar(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
+            @RequestParam(defaultValue = "false") boolean canceladas) {
+        return ResponseEntity.ok(reservaService.listarReservas(
+                data,
+                canceladas,
+                SecurityUtils.getUsuarioIdAtual(),
+                SecurityUtils.getPerfisAtuais()));
     }
 
     @GetMapping("/{id}")

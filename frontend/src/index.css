@@ -532,3 +532,51 @@ tbody tr:hover { background: rgba(255,255,255,0.02); }
   margin: 0.35rem 0 0;
   color: var(--muted, #64748b);
 }
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+}
+
+.tab-active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.mb-lg { margin-bottom: 1.5rem; }
+
+.filter-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 220px;
+}
+
+.position-scroll-list {
+  margin-top: 1rem;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.position-scroll-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.position-scroll-item:last-child {
+  border-bottom: none;
+}

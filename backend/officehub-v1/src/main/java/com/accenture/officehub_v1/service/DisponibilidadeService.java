@@ -6,6 +6,7 @@ import com.accenture.officehub_v1.dto.request.CriarRegraDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.ExcecaoDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.request.HorarioDisponibilidadeRequest;
 import com.accenture.officehub_v1.dto.response.ConsultaDisponibilidadeResponse;
+import com.accenture.officehub_v1.dto.response.PosicaoDisponibilidadeItemResponse;
 import com.accenture.officehub_v1.dto.response.PosicaoLayoutDisponibilidadeResponse;
 import com.accenture.officehub_v1.dto.response.PosicaoOcupadaResponse;
 import com.accenture.officehub_v1.dto.response.RegraDisponibilidadeResponse;
@@ -22,6 +23,7 @@ import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.ExcecaoDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.HorarioDisponibilidadeRepository;
+import com.accenture.officehub_v1.repository.PosicaoEquipamentoRepository;
 import com.accenture.officehub_v1.repository.RegraDisponibilidadeRepository;
 import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
 import com.accenture.officehub_v1.repository.UsuarioRepository;
@@ -55,6 +57,7 @@ public class DisponibilidadeService {
     private final SalaService salaService;
     private final PosicaoService posicaoService;
     private final ReservaPosicaoRepository reservaPosicaoRepository;
+    private final PosicaoEquipamentoRepository posicaoEquipamentoRepository;
     private final UsuarioRepository usuarioRepository;
     private final AuditService auditService;
 
@@ -239,7 +242,8 @@ public class DisponibilidadeService {
     }
 
     public ValidacaoDisponibilidadeResponse validarReservaPermitida(UUID salaId, LocalDate data) {
-        ConsultaDisponibilidadeResponse consulta = consultarDisponibilidade(salaId, data);
+        ConsultaDisponibilidadeResponse consulta = consultarDisponibilidade(
+                salaId, data, LocalTime.MIN, LocalTime.MAX);
         return new ValidacaoDisponibilidadeResponse(
                 consulta.salaId(),
                 consulta.data(),
@@ -247,27 +251,52 @@ public class DisponibilidadeService {
                 consulta.mensagemRegras());
     }
 
-    /**
-     * RF-35 / fluxo 7.4 — calendário de disponibilidade com layout e ocupação por data.
-     */
     public ConsultaDisponibilidadeResponse consultarDisponibilidade(UUID salaId, LocalDate data) {
+        return consultarDisponibilidade(salaId, data, LocalTime.MIN, LocalTime.MAX);
+    }
+
+    /**
+     * RF-35 / fluxo 7.4 — disponibilidade por data e faixa horária com equipamentos por posição.
+     */
+    public ConsultaDisponibilidadeResponse consultarDisponibilidade(
+            UUID salaId,
+            LocalDate data,
+            LocalTime horaInicio,
+            LocalTime horaFim) {
+        if (!horaInicio.isBefore(horaFim)) {
+            throw new RegraNegocioException("A hora de início deve ser anterior à hora de fim.");
+        }
+
         Sala sala = salaService.buscarEntidadeAtiva(salaId);
-        ValidacaoDisponibilidadeResponse regras = validarRegrasDisponibilidade(salaId, data);
+        ValidacaoDisponibilidadeResponse regras = validarRegrasDisponibilidade(salaId, data, horaInicio, horaFim);
 
         List<Posicao> todasPosicoes = posicaoService.listarPosicoesDaSala(salaId);
         List<UUID> posicoesOcupadasIds = reservaPosicaoRepository.findPosicaoIdsOcupadas(
-                salaId, data, LocalTime.MIN, LocalTime.MAX, STATUS_OCUPAM_POSICAO);
+                salaId, data, horaInicio, horaFim, STATUS_OCUPAM_POSICAO);
+
+        List<UUID> posicaoIds = todasPosicoes.stream().map(Posicao::getId).toList();
+        Map<UUID, List<String>> equipamentosPorPosicao = posicaoIds.isEmpty()
+                ? Map.of()
+                : posicaoEquipamentoRepository.findByPosicaoIdInWithTipoEquipamento(posicaoIds).stream()
+                        .collect(Collectors.groupingBy(
+                                pe -> pe.getPosicao().getId(),
+                                Collectors.mapping(pe -> pe.getTipoEquipamento().getNome(), Collectors.toList())));
 
         int totalInativas = 0;
         int totalLivres = 0;
         int totalOcupadas = 0;
 
-        List<PosicaoLayoutDisponibilidadeResponse> layout = new java.util.ArrayList<>();
+        List<PosicaoDisponibilidadeItemResponse> posicoes = new java.util.ArrayList<>();
         List<PosicaoOcupadaResponse> ocupadas = new java.util.ArrayList<>();
 
         for (Posicao posicao : todasPosicoes) {
             String situacao = resolverSituacao(posicao, posicoesOcupadasIds);
-            layout.add(PosicaoLayoutDisponibilidadeResponse.from(posicao, situacao));
+            List<String> equipamentos = equipamentosPorPosicao.getOrDefault(posicao.getId(), List.of());
+            posicoes.add(new PosicaoDisponibilidadeItemResponse(
+                    posicao.getId(),
+                    posicao.getIdentificador(),
+                    situacao,
+                    equipamentos));
 
             switch (situacao) {
                 case PosicaoStatus.INATIVA -> totalInativas++;
@@ -281,11 +310,15 @@ public class DisponibilidadeService {
             }
         }
 
-        Map<String, Long> livresPorTipo = todasPosicoes.stream()
-                .filter(p -> PosicaoStatus.LIVRE.equals(resolverSituacao(p, posicoesOcupadasIds)))
-                .collect(Collectors.groupingBy(
-                        p -> p.getTipo() != null && !p.getTipo().isBlank() ? p.getTipo() : "SEM_TIPO",
-                        Collectors.counting()));
+        Map<String, Long> livresPorTipo = posicoes.stream()
+                .filter(p -> PosicaoStatus.LIVRE.equals(p.situacao()))
+                .flatMap(p -> {
+                    if (p.equipamentos().isEmpty()) {
+                        return java.util.stream.Stream.of("SEM_EQUIPAMENTO");
+                    }
+                    return p.equipamentos().stream();
+                })
+                .collect(Collectors.groupingBy(nome -> nome, Collectors.counting()));
 
         boolean salaAtiva = sala.getStatus() == StatusSala.ATIVA;
         boolean disponivel = salaAtiva && regras.disponivel();
@@ -295,6 +328,8 @@ public class DisponibilidadeService {
         return new ConsultaDisponibilidadeResponse(
                 salaId,
                 data,
+                horaInicio,
+                horaFim,
                 sala.getStatus(),
                 disponivel,
                 mensagem,
@@ -303,15 +338,20 @@ public class DisponibilidadeService {
                 totalOcupadas,
                 totalInativas,
                 livresPorTipo,
+                posicoes,
                 ocupadas,
-                layout);
+                List.of());
     }
 
-    private ValidacaoDisponibilidadeResponse validarRegrasDisponibilidade(UUID salaId, LocalDate data) {
+    private ValidacaoDisponibilidadeResponse validarRegrasDisponibilidade(
+            UUID salaId,
+            LocalDate data,
+            LocalTime horaInicio,
+            LocalTime horaFim) {
         try {
-            validarDisponibilidade(salaId, data);
+            validarDisponibilidade(salaId, data, horaInicio, horaFim);
             return new ValidacaoDisponibilidadeResponse(salaId, data, true,
-                    "A sala está disponível para reserva na data informada.");
+                    "A sala está disponível para reserva no horário informado.");
         } catch (RegraNegocioException ex) {
             return new ValidacaoDisponibilidadeResponse(salaId, data, false, ex.getMessage());
         }

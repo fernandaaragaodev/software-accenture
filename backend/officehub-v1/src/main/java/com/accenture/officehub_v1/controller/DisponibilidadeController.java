@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @RestController
@@ -61,8 +62,11 @@ public class DisponibilidadeController {
     @GetMapping("/disponibilidade")
     public ResponseEntity<ConsultaDisponibilidadeResponse> consultarDisponibilidade(
             @PathVariable UUID salaId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return ResponseEntity.ok(disponibilidadeService.consultarDisponibilidade(salaId, data));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaFim) {
+        return ResponseEntity.ok(
+                disponibilidadeService.consultarDisponibilidade(salaId, data, horaInicio, horaFim));
     }
 
     @PostMapping("/excecoes-disponibilidade")

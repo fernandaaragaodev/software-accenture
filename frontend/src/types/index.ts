@@ -104,9 +104,18 @@ export interface RegraDisponibilidadeResponse {
   horarios: HorarioDisponibilidade[];
 }
 
+export interface PosicaoDisponibilidadeItem {
+  id: string;
+  identificador: string;
+  situacao: PosicaoSituacao;
+  equipamentos: string[];
+}
+
 export interface ConsultaDisponibilidadeResponse {
   salaId: string;
   data: string;
+  horaInicio: string;
+  horaFim: string;
   statusSala: StatusSala;
   disponivelParaReserva: boolean;
   mensagemRegras: string;
@@ -115,6 +124,7 @@ export interface ConsultaDisponibilidadeResponse {
   totalOcupadas: number;
   totalInativas: number;
   livresPorTipo: Record<string, number>;
+  posicoes: PosicaoDisponibilidadeItem[];
   posicoesOcupadas: { id: string; identificador: string; tipo?: string }[];
   layout: {
     id: string;
@@ -186,10 +196,28 @@ export interface AlocacaoResponse {
   equipamentos?: string[];
 }
 
+export interface ReservaResumoResponse {
+  id: string;
+  salaId: string;
+  salaNome: string;
+  solicitanteId: string;
+  solicitanteNome: string;
+  dataReserva: string;
+  horaInicio: string;
+  horaFim: string;
+  quantidadePessoas: number;
+  status: StatusReserva;
+  motivoCancelamento?: string;
+  canceladoPorNome?: string;
+  canceladoEm?: string;
+}
+
 export interface ReservaResponse {
   id: string;
   salaId: string;
+  salaNome?: string;
   solicitanteId: string;
+  solicitanteNome?: string;
   dataReserva: string;
   horaInicio: string;
   horaFim: string;
@@ -197,6 +225,9 @@ export interface ReservaResponse {
   criterioProximidade: CriterioProximidade;
   status: StatusReserva;
   motivoRejeicao?: string;
+  motivoCancelamento?: string;
+  canceladoPorNome?: string;
+  canceladoEm?: string;
   avisoProximidade?: string;
   alocacoes: AlocacaoResponse[];
 }

@@ -3,6 +3,7 @@ package com.accenture.officehub_v1.service;
 import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
+import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
 import com.accenture.officehub_v1.entity.Posicao;
 import com.accenture.officehub_v1.entity.Reserva;
@@ -47,6 +48,9 @@ public class ReservaService {
 
     private static final Set<StatusReserva> STATUS_OCUPAM_POSICAO =
             EnumSet.of(StatusReserva.PENDENTE, StatusReserva.CONFIRMADA);
+
+    private static final Set<StatusReserva> STATUS_ATIVAS_LISTAGEM =
+            EnumSet.of(StatusReserva.PENDENTE, StatusReserva.CONFIRMADA, StatusReserva.REJEITADA);
 
     private final ReservaRepository reservaRepository;
     private final ReservaPessoaRepository reservaPessoaRepository;
@@ -164,9 +168,35 @@ public class ReservaService {
     }
 
     public ReservaResponse buscarPorId(UUID id, UUID usuarioId, Collection<String> perfis) {
-        Reserva reserva = buscarEntidadeAtiva(id);
+        Reserva reserva = reservaRepository.findByIdComDetalhes(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Reserva não encontrada."));
         validarPermissaoGerenciarReserva(reserva, usuarioId, perfis);
         return toResponse(reserva);
+    }
+
+    public List<ReservaResumoResponse> listarReservas(
+            LocalDate data,
+            boolean canceladas,
+            UUID usuarioId,
+            Collection<String> perfis) {
+        List<Reserva> reservas;
+        if (canceladas) {
+            reservas = data != null
+                    ? reservaRepository.findCanceladasPorData(StatusReserva.CANCELADA, data)
+                    : reservaRepository.findCanceladas(StatusReserva.CANCELADA);
+        } else {
+            reservas = data != null
+                    ? reservaRepository.findAtivasPorData(STATUS_ATIVAS_LISTAGEM, data)
+                    : reservaRepository.findAtivas(STATUS_ATIVAS_LISTAGEM);
+        }
+
+        if (!perfis.contains(Roles.ADMIN_SALA)) {
+            reservas = reservas.stream()
+                    .filter(r -> reservaAutorizacaoService.podeGerenciarReserva(usuarioId, perfis, r))
+                    .toList();
+        }
+
+        return reservas.stream().map(ReservaResumoResponse::from).toList();
     }
 
     public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data, java.time.LocalTime horaInicio, java.time.LocalTime horaFim) {

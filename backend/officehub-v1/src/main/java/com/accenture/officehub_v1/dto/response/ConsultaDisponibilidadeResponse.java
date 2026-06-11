@@ -3,6 +3,7 @@ package com.accenture.officehub_v1.dto.response;
 import com.accenture.officehub_v1.entity.enums.StatusSala;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -10,6 +11,8 @@ import java.util.UUID;
 public record ConsultaDisponibilidadeResponse(
         UUID salaId,
         LocalDate data,
+        LocalTime horaInicio,
+        LocalTime horaFim,
         StatusSala statusSala,
         boolean disponivelParaReserva,
         String mensagemRegras,
@@ -18,6 +21,7 @@ public record ConsultaDisponibilidadeResponse(
         int totalOcupadas,
         int totalInativas,
         Map<String, Long> livresPorTipo,
+        List<PosicaoDisponibilidadeItemResponse> posicoes,
         List<PosicaoOcupadaResponse> posicoesOcupadas,
         List<PosicaoLayoutDisponibilidadeResponse> layout
 ) {

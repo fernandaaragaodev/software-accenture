@@ -20,12 +20,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -58,10 +61,16 @@ class RbacAuthorizationTest {
 
   @BeforeEach
   void configurarDisponibilidade() {
-    when(disponibilidadeService.consultarDisponibilidade(eq(SALA_ID), eq(LocalDate.of(2026, 6, 4))))
+    when(disponibilidadeService.consultarDisponibilidade(
+            eq(SALA_ID),
+            eq(LocalDate.of(2026, 6, 4)),
+            eq(LocalTime.of(8, 0)),
+            eq(LocalTime.of(18, 0))))
         .thenReturn(new ConsultaDisponibilidadeResponse(
             SALA_ID,
             LocalDate.of(2026, 6, 4),
+            LocalTime.of(8, 0),
+            LocalTime.of(18, 0),
             StatusSala.ATIVA,
             true,
             "OK",
@@ -70,6 +79,7 @@ class RbacAuthorizationTest {
             0,
             0,
             Map.of(),
+            List.of(),
             List.of(),
             List.of()));
   }
@@ -122,7 +132,9 @@ class RbacAuthorizationTest {
   @WithMockUser(authorities = Roles.USUARIO_FINAL)
   void consultarDisponibilidade_usuarioFinal_permitido() throws Exception {
     mockMvc.perform(get("/api/v1/salas/{id}/disponibilidade", SALA_ID)
-            .param("data", "2026-06-04"))
+            .param("data", "2026-06-04")
+            .param("horaInicio", "08:00:00")
+            .param("horaFim", "18:00:00"))
         .andExpect(status().isOk());
   }
 
@@ -152,7 +164,30 @@ class RbacAuthorizationTest {
   @WithMockUser(authorities = Roles.ADMIN_SALA)
   void consultarDisponibilidade_adminSala_permitido() throws Exception {
     mockMvc.perform(get("/api/v1/salas/{id}/disponibilidade", SALA_ID)
+            .param("data", "2026-06-04")
+            .param("horaInicio", "08:00:00")
+            .param("horaFim", "18:00:00"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.ADMIN_SALA)
+  void listarReservas_adminSala_permitido() throws Exception {
+    when(reservaService.listarReservas(any(), eq(false), any(), any())).thenReturn(List.of());
+
+    mockMvc.perform(get("/api/v1/reservas")
             .param("data", "2026-06-04"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @WithMockUser(authorities = Roles.ADMIN_SALA)
+  void cancelarReserva_adminSala_passaAutorizacao() throws Exception {
+    when(reservaService.cancelarReserva(eq(SALA_ID), any(), any(), any())).thenReturn(null);
+
+    mockMvc.perform(delete("/api/v1/reservas/{id}", SALA_ID)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"motivo\":\"Cancelamento administrativo\"}"))
         .andExpect(status().isOk());
   }
 

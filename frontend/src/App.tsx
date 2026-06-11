@@ -16,6 +16,7 @@ import { MinhaEquipeDetailPage } from './pages/equipes/MinhaEquipeDetailPage';
 import { MinhasEquipesPage } from './pages/equipes/MinhasEquipesPage';
 import { NovaReservaPage } from './pages/reservas/NovaReservaPage';
 import { ReservaDetailPage } from './pages/reservas/ReservaDetailPage';
+import { AdminReservasPage } from './pages/admin/AdminReservasPage';
 import { GestaoReservasPage, ReservasListPage } from './pages/reservas/ReservasListPage';
 import { SalaDetailPage } from './pages/salas/SalaDetailPage';
 import { SalaFormPage, SalasListPage } from './pages/salas/SalasPages';
@@ -41,6 +42,9 @@ export default function App() {
                 <Route path="regras-disponibilidade" element={<RegrasDisponibilidadePage />} />
                 <Route path="usuarios" element={<UsuariosPage />} />
                 <Route path="ia-execucoes" element={<IaExecucoesPage />} />
+                <Route path="admin/reservas" element={<AdminReservasPage />} />
+                <Route path="admin/reservas/:id" element={<ReservaDetailPage />} />
+                <Route path="disponibilidade" element={<DisponibilidadePage />} />
               </Route>
 
               <Route element={<ProtectedRoute roles={['USUARIO_FINAL']} />}>

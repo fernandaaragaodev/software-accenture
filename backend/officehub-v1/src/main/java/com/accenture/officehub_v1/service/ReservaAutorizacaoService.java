@@ -20,6 +20,10 @@ public class ReservaAutorizacaoService {
     private final ReservaPessoaRepository reservaPessoaRepository;
 
     public boolean podeGerenciarReserva(UUID usuarioId, Collection<String> perfis, Reserva reserva) {
+        if (perfis.contains(Roles.ADMIN_SALA)) {
+            return true;
+        }
+
         if (reserva.getSolicitante().getId().equals(usuarioId)) {
             return true;
         }

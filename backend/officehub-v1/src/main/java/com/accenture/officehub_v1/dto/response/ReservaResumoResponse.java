@@ -6,10 +6,9 @@ import com.accenture.officehub_v1.entity.enums.StatusReserva;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 
-public record ReservaResponse(
+public record ReservaResumoResponse(
         UUID id,
         UUID salaId,
         String salaNome,
@@ -19,25 +18,14 @@ public record ReservaResponse(
         LocalTime horaInicio,
         LocalTime horaFim,
         Integer quantidadePessoas,
-        String criterioProximidade,
         StatusReserva status,
-        String motivoRejeicao,
         String motivoCancelamento,
         String canceladoPorNome,
-        OffsetDateTime canceladoEm,
-        String avisoProximidade,
-        List<ReservaPosicaoAlocadaResponse> alocacoes
+        OffsetDateTime canceladoEm
 ) {
 
-    public static ReservaResponse from(Reserva reserva) {
-        return from(reserva, List.of(), null);
-    }
-
-    public static ReservaResponse from(
-            Reserva reserva,
-            List<ReservaPosicaoAlocadaResponse> alocacoes,
-            String avisoProximidade) {
-        return new ReservaResponse(
+    public static ReservaResumoResponse from(Reserva reserva) {
+        return new ReservaResumoResponse(
                 reserva.getId(),
                 reserva.getSala().getId(),
                 reserva.getSala().getNome(),
@@ -47,14 +35,9 @@ public record ReservaResponse(
                 reserva.getHoraInicio(),
                 reserva.getHoraFim(),
                 reserva.getQuantidadePessoas(),
-                reserva.getCriterioProximidade(),
                 reserva.getStatus(),
-                reserva.getMotivoRejeicao(),
                 reserva.getMotivoCancelamento(),
                 reserva.getCanceladoPor() != null ? reserva.getCanceladoPor().getNome() : null,
-                reserva.getCanceladoEm(),
-                avisoProximidade,
-                alocacoes
-        );
+                reserva.getCanceladoEm());
     }
 }
