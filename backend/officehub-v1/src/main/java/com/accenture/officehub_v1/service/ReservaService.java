@@ -1,10 +1,14 @@
 package com.accenture.officehub_v1.service;
 
+import com.accenture.officehub_v1.dto.request.AceitarSugestaoReservaRequest;
 import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
+import com.accenture.officehub_v1.dto.request.SugestaoOutraAlocacaoRequest;
+import com.accenture.officehub_v1.dto.response.ReservaPosicaoAlocadaResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
+import com.accenture.officehub_v1.dto.response.SugestaoAlocacaoResponse;
 import com.accenture.officehub_v1.entity.Posicao;
 import com.accenture.officehub_v1.entity.Reserva;
 import com.accenture.officehub_v1.entity.ReservaPessoa;
@@ -18,7 +22,6 @@ import com.accenture.officehub_v1.exception.RecursoNaoEncontradoException;
 import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.service.ia.AgenteAlocacaoService;
 import com.accenture.officehub_v1.service.ia.ResultadoExecucaoAgente;
-import com.accenture.officehub_v1.dto.response.ReservaPosicaoAlocadaResponse;
 import com.accenture.officehub_v1.repository.PosicaoEquipamentoRepository;
 import com.accenture.officehub_v1.repository.ReservaPessoaRepository;
 import com.accenture.officehub_v1.repository.ReservaPosicaoRepository;
@@ -37,8 +40,10 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,29 +71,50 @@ public class ReservaService {
     private final AuditService auditService;
     private final ReservaAutorizacaoService reservaAutorizacaoService;
 
-    @Transactional
-    public ReservaResponse solicitarReserva(
+    public SugestaoAlocacaoResponse sugerirAlocacao(
             SolicitarReservaRequest request,
             UUID solicitanteId,
             Collection<String> perfis) {
-        Sala sala = validarPreCondicoesReserva(request);
-
-        validarQuantidadePessoas(request, sala);
-        validarPessoasInformadas(request, solicitanteId, perfis);
-        validarCriterioProximidade(request.criterioProximidade());
-
-        List<Posicao> posicoesLivres = buscarPosicoesLivres(
-                request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
-
+        ContextoAlocacao contexto = prepararContextoAlocacao(request, solicitanteId, perfis);
         ResultadoExecucaoAgente execucaoIa = agenteAlocacaoService.executar(
-                sala,
+                contexto.sala(),
                 request.dataReserva(),
                 request.equipeId(),
                 request.pessoas(),
                 request.criterioProximidade(),
-                posicoesLivres);
+                contexto.posicoesLivres());
+        return montarSugestao(execucaoIa);
+    }
 
-        ResultadoAlocacao resultado = execucaoIa.resultadoAlocacao();
+    public SugestaoAlocacaoResponse sugerirOutraAlocacao(
+            SugestaoOutraAlocacaoRequest request,
+            UUID solicitanteId,
+            Collection<String> perfis) {
+        SolicitarReservaRequest reserva = request.reserva();
+        ContextoAlocacao contexto = prepararContextoAlocacao(reserva, solicitanteId, perfis);
+        ResultadoExecucaoAgente execucaoIa = agenteAlocacaoService.executar(
+                contexto.sala(),
+                reserva.dataReserva(),
+                reserva.equipeId(),
+                reserva.pessoas(),
+                reserva.criterioProximidade(),
+                contexto.posicoesLivres(),
+                request.combinacoesExcluidas());
+        return montarSugestao(execucaoIa);
+    }
+
+    @Transactional
+    public ReservaResponse solicitarReserva(
+            AceitarSugestaoReservaRequest request,
+            UUID solicitanteId,
+            Collection<String> perfis) {
+        SolicitarReservaRequest dados = request.reserva();
+        ContextoAlocacao contexto = prepararContextoAlocacao(dados, solicitanteId, perfis);
+
+        ResultadoAlocacao resultado = agenteAlocacaoService.recuperarResultadoExecucao(
+                request.execucaoId(),
+                dados.pessoas(),
+                contexto.posicoesLivres());
 
         if (!resultado.sucesso()) {
             throw new ConflitoAlocacaoException(resultado.motivoFalha());
@@ -98,9 +124,9 @@ public class ReservaService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Solicitante da reserva não encontrado."));
 
-        ReservaResponse response = persistirReservaConfirmada(
-                request, sala, solicitante, resultado.alocacoes(), resultado.avisoProximidade());
-        agenteAlocacaoService.vincularReferenciaReserva(execucaoIa.execucaoId(), response.id());
+        ReservaResponse response = persistirReservaPendente(
+                dados, contexto.sala(), solicitante, resultado.alocacoes(), resultado.avisoProximidade());
+        agenteAlocacaoService.vincularReferenciaReserva(request.execucaoId(), response.id());
         auditService.registrar(solicitanteId, "CRIAR", "Reserva", response.id());
         return response;
     }
@@ -227,7 +253,65 @@ public class ReservaService {
         return sala;
     }
 
-    private ReservaResponse persistirReservaConfirmada(
+    private ContextoAlocacao prepararContextoAlocacao(
+            SolicitarReservaRequest request,
+            UUID solicitanteId,
+            Collection<String> perfis) {
+        Sala sala = validarPreCondicoesReserva(request);
+        validarQuantidadePessoas(request, sala);
+        validarPessoasInformadas(request, solicitanteId, perfis);
+        validarCriterioProximidade(request.criterioProximidade());
+
+        List<Posicao> posicoesLivres = buscarPosicoesLivres(
+                request.salaId(), request.dataReserva(), request.horaInicio(), request.horaFim());
+
+        return new ContextoAlocacao(sala, posicoesLivres);
+    }
+
+    private SugestaoAlocacaoResponse montarSugestao(ResultadoExecucaoAgente execucaoIa) {
+        ResultadoAlocacao resultado = execucaoIa.resultadoAlocacao();
+        if (!resultado.sucesso()) {
+            throw new ConflitoAlocacaoException(resultado.motivoFalha());
+        }
+
+        List<UUID> posicaoIds = resultado.alocacoes().stream()
+                .map(item -> item.posicao().getId())
+                .toList();
+
+        Map<UUID, List<String>> equipamentosPorPosicao = posicaoIds.isEmpty()
+                ? Map.of()
+                : posicaoEquipamentoRepository.findByPosicaoIdInWithTipoEquipamento(posicaoIds).stream()
+                        .collect(Collectors.groupingBy(
+                                pe -> pe.getPosicao().getId(),
+                                Collectors.mapping(pe -> pe.getTipoEquipamento().getNome(), Collectors.toList())));
+
+        Map<UUID, String> nomesPorUsuario = resultado.alocacoes().stream()
+                .map(item -> item.pessoa().usuarioId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toMap(
+                        Function.identity(),
+                        id -> usuarioRepository.findByIdAndDeletedAtIsNull(id)
+                                .map(Usuario::getNome)
+                                .orElse("Participante")));
+
+        List<ReservaPosicaoAlocadaResponse> alocacoes = resultado.alocacoes().stream()
+                .map(item -> ReservaPosicaoAlocadaResponse.from(
+                        item,
+                        item.pessoa().usuarioId() != null
+                                ? nomesPorUsuario.get(item.pessoa().usuarioId())
+                                : item.pessoa().nomeExterno(),
+                        equipamentosPorPosicao.getOrDefault(item.posicao().getId(), List.of())))
+                .toList();
+
+        return new SugestaoAlocacaoResponse(
+                execucaoIa.execucaoId(),
+                resultado.avisoProximidade(),
+                alocacoes,
+                posicaoIds);
+    }
+
+    private ReservaResponse persistirReservaPendente(
             SolicitarReservaRequest request,
             Sala sala,
             Usuario solicitante,
@@ -242,12 +326,14 @@ public class ReservaService {
                 .horaFim(request.horaFim())
                 .quantidadePessoas(request.quantidadePessoas())
                 .criterioProximidade(request.criterioProximidade())
-                .status(StatusReserva.CONFIRMADA)
+                .status(StatusReserva.PENDENTE)
                 .build());
 
         persistirPessoasEPosicoes(reserva, alocacoes);
-        notificacaoService.notificarConfirmacaoReserva(reserva);
         return toResponse(reserva, avisoProximidade);
+    }
+
+    private record ContextoAlocacao(Sala sala, List<Posicao> posicoesLivres) {
     }
 
     private void persistirPessoasEPosicoes(Reserva reserva, List<ItemAlocacao> alocacoes) {

@@ -226,7 +226,8 @@ class MotorAlocacaoEspacialTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 pessoas,
-                posicoes);
+                posicoes,
+                List.of());
     }
 
     private PessoaAlocacaoEntradaDto pessoa(

@@ -43,6 +43,17 @@ public class AlocacaoEntradaBuilder {
             List<PessoaReservaRequest> pessoas,
             String criterioProximidade,
             List<Posicao> posicoesLivres) {
+        return montar(sala, dataReserva, equipeId, pessoas, criterioProximidade, posicoesLivres, List.of());
+    }
+
+    public AlocacaoAgenteEntradaDto montar(
+            Sala sala,
+            LocalDate dataReserva,
+            UUID equipeId,
+            List<PessoaReservaRequest> pessoas,
+            String criterioProximidade,
+            List<Posicao> posicoesLivres,
+            List<List<UUID>> combinacoesExcluidas) {
 
         Map<UUID, List<String>> equipamentosPorPosicao = carregarEquipamentosPorPosicao(posicoesLivres);
 
@@ -72,7 +83,8 @@ public class AlocacaoEntradaBuilder {
                 entrada[0],
                 entrada[1],
                 pessoasEntrada,
-                posicoesEntrada);
+                posicoesEntrada,
+                combinacoesExcluidas);
     }
 
     private PessoaAlocacaoEntradaDto montarPessoa(

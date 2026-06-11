@@ -1,10 +1,13 @@
 package com.accenture.officehub_v1.controller;
 
+import com.accenture.officehub_v1.dto.request.AceitarSugestaoReservaRequest;
 import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
+import com.accenture.officehub_v1.dto.request.SugestaoOutraAlocacaoRequest;
 import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
+import com.accenture.officehub_v1.dto.response.SugestaoAlocacaoResponse;
 import com.accenture.officehub_v1.security.SecurityUtils;
 import com.accenture.officehub_v1.service.ReservaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,20 +43,38 @@ public class ReservaController {
 
     private final ReservaService reservaService;
 
+    @PostMapping("/sugerir")
+    @Operation(summary = "Sugerir alocação de posições via IA")
+    public ResponseEntity<SugestaoAlocacaoResponse> sugerir(@Valid @RequestBody SolicitarReservaRequest request) {
+        return ResponseEntity.ok(reservaService.sugerirAlocacao(
+                request,
+                SecurityUtils.getUsuarioIdAtual(),
+                SecurityUtils.getPerfisAtuais()));
+    }
+
+    @PostMapping("/sugerir/outra")
+    @Operation(summary = "Sugerir outra combinação de posições via IA")
+    public ResponseEntity<SugestaoAlocacaoResponse> sugerirOutra(
+            @Valid @RequestBody SugestaoOutraAlocacaoRequest request) {
+        return ResponseEntity.ok(reservaService.sugerirOutraAlocacao(
+                request,
+                SecurityUtils.getUsuarioIdAtual(),
+                SecurityUtils.getPerfisAtuais()));
+    }
+
     @PostMapping
     @Operation(
-            summary = "Solicitar reserva",
+            summary = "Aceitar sugestão e criar reserva pendente",
             description = """
-                    Cria uma reserva confirmada após o Agente de Alocação (IA algorítmica) \
-                    validar posições livres, tipos compatíveis e proximidade. \
-                    Em falha de alocação retorna HTTP 409 sem persistir a reserva.""")
+                    Cria uma reserva PENDENTE com as posições da sugestão aceita. \
+                    A confirmação final deve ser feita em PATCH /reservas/{id}/confirmar.""")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Reserva confirmada com posições alocadas",
+            @ApiResponse(responseCode = "201", description = "Reserva pendente criada com posições sugeridas",
                     content = @Content(schema = @Schema(implementation = ReservaResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Falha do agente de alocação — reserva não criada"),
+            @ApiResponse(responseCode = "409", description = "Sugestão inválida ou indisponível"),
             @ApiResponse(responseCode = "422", description = "Regra de negócio violada")
     })
-    public ResponseEntity<ReservaResponse> solicitar(@Valid @RequestBody SolicitarReservaRequest request) {
+    public ResponseEntity<ReservaResponse> solicitar(@Valid @RequestBody AceitarSugestaoReservaRequest request) {
         UUID solicitanteId = SecurityUtils.getUsuarioIdAtual();
         ReservaResponse response = reservaService.solicitarReserva(
                 request,

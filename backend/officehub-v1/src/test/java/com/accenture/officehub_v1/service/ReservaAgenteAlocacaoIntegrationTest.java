@@ -1,5 +1,6 @@
 package com.accenture.officehub_v1.service;
 
+import com.accenture.officehub_v1.dto.request.AceitarSugestaoReservaRequest;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.entity.Layout;
@@ -128,14 +129,14 @@ class ReservaAgenteAlocacaoIntegrationTest {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
         criarPosicao("P-02", "Estação Padrão", 2, 0);
 
-        var response = reservaService.solicitarReserva(
+        var response = aceitarSugestao(
                 request(CriterioProximidade.OBRIGATORIA, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
                 solicitanteId,
                 List.of(Roles.INTEGRADOR));
 
-        assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
+        assertThat(response.status()).isEqualTo(StatusReserva.PENDENTE);
         assertThat(response.alocacoes()).hasSize(2);
         assertThat(reservaRepository.count()).isEqualTo(1);
 
@@ -153,7 +154,7 @@ class ReservaAgenteAlocacaoIntegrationTest {
     void deveFalharPorFaltaDePosicoesLivresSemCriarReserva() {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
 
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
+        assertThatThrownBy(() -> reservaService.sugerirAlocacao(
                 request(CriterioProximidade.PREFERENCIAL, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
@@ -171,7 +172,7 @@ class ReservaAgenteAlocacaoIntegrationTest {
         criarPosicao("P-01", "Hot Desk", 0, 0);
         criarPosicao("P-02", "Hot Desk", 1, 0);
 
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
+        assertThatThrownBy(() -> reservaService.sugerirAlocacao(
                 request(CriterioProximidade.PREFERENCIAL, 1, pessoa("Estação Executiva")),
                 solicitanteId,
                 List.of(Roles.USUARIO_FINAL)))
@@ -187,7 +188,7 @@ class ReservaAgenteAlocacaoIntegrationTest {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
         criarPosicao("P-02", "Estação Padrão", 10, 0);
 
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
+        assertThatThrownBy(() -> reservaService.sugerirAlocacao(
                 request(CriterioProximidade.OBRIGATORIA, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
@@ -205,14 +206,14 @@ class ReservaAgenteAlocacaoIntegrationTest {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
         criarPosicao("P-02", "Estação Padrão", 10, 0);
 
-        var response = reservaService.solicitarReserva(
+        var response = aceitarSugestao(
                 request(CriterioProximidade.PREFERENCIAL, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
                 solicitanteId,
                 List.of(Roles.INTEGRADOR));
 
-        assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
+        assertThat(response.status()).isEqualTo(StatusReserva.PENDENTE);
         assertThat(response.avisoProximidade()).contains("raio de proximidade preferencial");
 
         var logs = agenteExecucaoRepository.findAll();
@@ -263,5 +264,16 @@ class ReservaAgenteAlocacaoIntegrationTest {
 
     private PessoaReservaRequest pessoa(String tipoPreferido) {
         return pessoa(solicitanteId, tipoPreferido);
+    }
+
+    private com.accenture.officehub_v1.dto.response.ReservaResponse aceitarSugestao(
+            SolicitarReservaRequest req,
+            UUID solicitante,
+            List<String> perfis) {
+        var sugestao = reservaService.sugerirAlocacao(req, solicitante, perfis);
+        return reservaService.solicitarReserva(
+                new AceitarSugestaoReservaRequest(sugestao.execucaoId(), req),
+                solicitante,
+                perfis);
     }
 }

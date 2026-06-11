@@ -74,11 +74,18 @@ public class SecurityConfig {
                                 Roles.INTEGRADOR,
                                 Roles.GESTOR_RESERVAS,
                                 Roles.ADMIN_SALA)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/reservas/sugerir", "/api/v1/reservas/sugerir/outra")
+                        .hasAnyAuthority(
+                                Roles.USUARIO_FINAL,
+                                Roles.INTEGRADOR,
+                                Roles.GESTOR_RESERVAS)
                         .requestMatchers(HttpMethod.POST, "/api/v1/reservas")
                         .hasAnyAuthority(
                                 Roles.USUARIO_FINAL,
                                 Roles.INTEGRADOR,
                                 Roles.GESTOR_RESERVAS)
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/reservas/*/confirmar")
+                        .hasAnyAuthority(Roles.USUARIO_FINAL, Roles.GESTOR_RESERVAS)
                         .requestMatchers(HttpMethod.GET, "/api/v1/reservas")
                         .hasAnyAuthority(
                                 Roles.USUARIO_FINAL,

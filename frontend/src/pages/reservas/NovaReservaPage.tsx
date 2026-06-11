@@ -16,6 +16,8 @@ import type {
   HorarioDisponibilidade,
   PessoaReservaRequest,
   SalaResponse,
+  SolicitarReservaRequest,
+  SugestaoAlocacaoResponse,
   TipoEquipamentoResponse,
   UsuarioResumo,
 } from '../../types';
@@ -76,6 +78,9 @@ export function NovaReservaPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [carregandoDados, setCarregandoDados] = useState(true);
+  const [etapa, setEtapa] = useState<'formulario' | 'sugestao'>('formulario');
+  const [sugestao, setSugestao] = useState<SugestaoAlocacaoResponse | null>(null);
+  const [combinacoesExcluidas, setCombinacoesExcluidas] = useState<string[][]>([]);
 
   const opcoesEquipamento = useMemo(
     () => tiposEquipamento.filter((t) => t.ativo),
@@ -205,23 +210,36 @@ export function NovaReservaPage() {
     return opcoesPessoas.find((p) => p.id === usuarioId)?.nome ?? '';
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  function montarRequest(): SolicitarReservaRequest | null {
+    if (!validarFormulario()) return null;
+    return {
+      salaId,
+      equipeId: isGestor ? equipeId : undefined,
+      dataReserva,
+      horaInicio: toApiTime(horaInicio),
+      horaFim: toApiTime(horaFim),
+      quantidadePessoas,
+      criterioProximidade,
+      pessoas: pessoas.map(({ key: _, ...p }) => p),
+    };
+  }
+
+  function validarFormulario() {
     setError('');
 
     if (isGestor && !equipeId) {
       setError('Selecione a equipe para a reserva.');
-      return;
+      return false;
     }
 
     if (horaInicio >= horaFim) {
       setError('A hora de início deve ser anterior à hora de fim.');
-      return;
+      return false;
     }
 
     if (salaSelecionada && quantidadePessoas > salaSelecionada.capacidadeMaxima) {
       setError(`A quantidade de pessoas excede a capacidade da sala (${salaSelecionada.capacidadeMaxima}).`);
-      return;
+      return false;
     }
 
     if (horarioDia) {
@@ -229,7 +247,7 @@ export function NovaReservaPage() {
       const fechamento = toTimeInput(horarioDia.horaFechamento);
       if (horaInicio < abertura || horaFim > fechamento) {
         setError(`O horário deve estar entre ${abertura} e ${fechamento}.`);
-        return;
+        return false;
       }
     }
 
@@ -237,33 +255,78 @@ export function NovaReservaPage() {
       const ids = pessoas.map((p) => p.usuarioId).filter(Boolean);
       if (ids.length !== pessoas.length) {
         setError('Selecione o participante para cada pessoa.');
-        return;
+        return false;
       }
       if (new Set(ids).size !== ids.length) {
         setError('Cada membro só pode ser selecionado uma vez na mesma reserva.');
-        return;
+        return false;
       }
     }
 
+    return true;
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const request = montarRequest();
+    if (!request) return;
+
     setLoading(true);
+    setCombinacoesExcluidas([]);
     try {
-      const reserva = await reservasApi.solicitar({
-        salaId,
-        equipeId: isGestor ? equipeId : undefined,
-        dataReserva,
-        horaInicio: toApiTime(horaInicio),
-        horaFim: toApiTime(horaFim),
-        quantidadePessoas,
-        criterioProximidade,
-        pessoas: pessoas.map(({ key: _, ...p }) => p),
-      });
-      navigate(`/reservas/${reserva.id}`);
+      const resultado = await reservasApi.sugerir(request);
+      setSugestao(resultado);
+      setEtapa('sugestao');
     } catch (err) {
       if (err instanceof ApiException && err.status === 409) {
         setError(`A IA não encontrou uma alocação válida: ${err.message}`);
       } else {
-        setError(err instanceof ApiException ? err.message : 'Erro ao solicitar reserva');
+        setError(err instanceof ApiException ? err.message : 'Erro ao obter sugestão da IA');
       }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSugerirOutra() {
+    const request = montarRequest();
+    if (!request || !sugestao) return;
+
+    const novasExcluidas = [...combinacoesExcluidas, sugestao.posicoesSugeridas];
+    setLoading(true);
+    setError('');
+    try {
+      const resultado = await reservasApi.sugerirOutra({
+        reserva: request,
+        combinacoesExcluidas: novasExcluidas,
+      });
+      setCombinacoesExcluidas(novasExcluidas);
+      setSugestao(resultado);
+    } catch (err) {
+      if (err instanceof ApiException && err.status === 409) {
+        setError(`Não há mais alternativas disponíveis: ${err.message}`);
+      } else {
+        setError(err instanceof ApiException ? err.message : 'Erro ao obter nova sugestão');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCriarReservaPendente() {
+    const request = montarRequest();
+    if (!request || !sugestao) return;
+
+    setLoading(true);
+    setError('');
+    try {
+      const reserva = await reservasApi.solicitar({
+        execucaoId: sugestao.execucaoId,
+        reserva: request,
+      });
+      navigate(`/reservas/${reserva.id}`);
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : 'Erro ao criar reserva');
     } finally {
       setLoading(false);
     }
@@ -281,12 +344,76 @@ export function NovaReservaPage() {
     <div>
       <PageHeader
         title="Nova Reserva"
-        subtitle="A alocação de posições é feita automaticamente pelo agente de IA"
+        subtitle={
+          etapa === 'sugestao'
+            ? 'Revise a sugestão da IA e confirme manualmente a reserva'
+            : 'A IA sugere posições com base nas preferências — você confirma ao final'
+        }
       />
 
+      <Alert message={error} />
+
+      {etapa === 'sugestao' && sugestao && (
+        <div className="card mt-lg">
+          <h3>Sugestão da IA</h3>
+          {sugestao.avisoProximidade && (
+            <p className="warning-text">{sugestao.avisoProximidade}</p>
+          )}
+          <div className="table-wrap mt-md">
+            <table>
+              <thead>
+                <tr>
+                  <th>Participante</th>
+                  <th>Posição sugerida</th>
+                  <th>Equipamentos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sugestao.alocacoes.map((a) => (
+                  <tr key={a.posicaoId}>
+                    <td>{a.pessoaNome ?? '—'}</td>
+                    <td><strong>{a.posicaoIdentificador}</strong></td>
+                    <td>{a.equipamentos?.length ? a.equipamentos.join(', ') : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="form-actions mt-md">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setEtapa('formulario');
+                setSugestao(null);
+                setCombinacoesExcluidas([]);
+              }}
+            >
+              Voltar ao formulário
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={loading}
+              onClick={handleSugerirOutra}
+            >
+              {loading ? 'Buscando...' : 'Sugerir outra opção'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={loading}
+              onClick={handleCriarReservaPendente}
+            >
+              {loading ? 'Criando...' : 'Criar reserva para confirmação'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {etapa === 'formulario' && (
       <div className="card form-card">
         <form onSubmit={handleSubmit} className="form">
-          <Alert message={error} />
 
           <div className="form-grid">
             <label>
@@ -392,10 +519,10 @@ export function NovaReservaPage() {
           )}
 
           <div className="info-box">
-            <strong>Alocação automática por IA</strong>
+            <strong>Sugestão de posições por IA</strong>
             <p>
-              Ao enviar a reserva, o backend valida sala, layout aprovado, disponibilidade e posições livres.
-              Depois aciona OpenRouter + Gemini Flash; se falhar, usa o algoritmo espacial local como fallback.
+              A IA analisa preferências de equipamento e proximidade para sugerir posições.
+              Você pode pedir outra opção ou confirmar manualmente a reserva ao final.
             </p>
           </div>
 
@@ -480,11 +607,12 @@ export function NovaReservaPage() {
               className="btn btn-primary"
               disabled={loading || !salaId || (!horarioDia && !!dataReserva)}
             >
-              {loading ? 'Processando alocação...' : 'Solicitar reserva'}
+              {loading ? 'Gerando sugestão...' : 'Obter sugestão da IA'}
             </button>
           </div>
         </form>
       </div>
+      )}
     </div>
   );
 }

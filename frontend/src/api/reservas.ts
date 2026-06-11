@@ -1,15 +1,22 @@
 import { api } from './client';
 import type {
+  AceitarSugestaoReservaRequest,
   CancelarReservaRequest,
   RejeitarReservaRequest,
   ReservaResumoResponse,
   ReservaResponse,
   SolicitarReservaRequest,
+  SugestaoAlocacaoResponse,
+  SugestaoOutraAlocacaoRequest,
 } from '../types';
 import { addStoredReservationId } from '../utils/auth';
 
 export const reservasApi = {
-  solicitar: async (data: SolicitarReservaRequest) => {
+  sugerir: (data: SolicitarReservaRequest) =>
+    api.post<SugestaoAlocacaoResponse>('/reservas/sugerir', data),
+  sugerirOutra: (data: SugestaoOutraAlocacaoRequest) =>
+    api.post<SugestaoAlocacaoResponse>('/reservas/sugerir/outra', data),
+  solicitar: async (data: AceitarSugestaoReservaRequest) => {
     const reserva = await api.post<ReservaResponse>('/reservas', data);
     addStoredReservationId(reserva.id);
     return reserva;

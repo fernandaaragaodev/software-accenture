@@ -134,6 +134,10 @@ public class MotorAlocacaoEspacial implements MotorAlocacao {
                 return Optional.empty();
             }
 
+            if (combinacaoExcluida(entrada.combinacoesExcluidas(), alocadas)) {
+                return Optional.empty();
+            }
+
             int bonusAgrupamento = calcularBonusAgrupamentoEquipe(entrada, alocadas);
             return Optional.of(new ResultadoBusca(
                     montarAlocacoesParciais(alocadas),
@@ -399,6 +403,26 @@ public class MotorAlocacaoEspacial implements MotorAlocacao {
             mapa.put(posicao.id(), posicao);
         }
         return mapa;
+    }
+
+    private boolean combinacaoExcluida(
+            List<List<UUID>> combinacoesExcluidas,
+            Map<UUID, PosicaoLivreEntradaDto> alocadas) {
+        if (combinacoesExcluidas == null || combinacoesExcluidas.isEmpty()) {
+            return false;
+        }
+
+        Set<UUID> atual = alocadas.values().stream()
+                .map(PosicaoLivreEntradaDto::id)
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (List<UUID> excluida : combinacoesExcluidas) {
+            if (new HashSet<>(excluida).equals(atual)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private List<AlocacaoParcial> montarAlocacoesParciais(Map<UUID, PosicaoLivreEntradaDto> alocadas) {

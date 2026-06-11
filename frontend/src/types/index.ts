@@ -177,6 +177,23 @@ export interface PessoaReservaRequest {
   tipoPreferido3?: string;
 }
 
+export interface SugestaoAlocacaoResponse {
+  execucaoId: string;
+  avisoProximidade?: string;
+  alocacoes: AlocacaoResponse[];
+  posicoesSugeridas: string[];
+}
+
+export interface AceitarSugestaoReservaRequest {
+  execucaoId: string;
+  reserva: SolicitarReservaRequest;
+}
+
+export interface SugestaoOutraAlocacaoRequest {
+  reserva: SolicitarReservaRequest;
+  combinacoesExcluidas?: string[][];
+}
+
 export interface SolicitarReservaRequest {
   salaId: string;
   equipeId?: string;

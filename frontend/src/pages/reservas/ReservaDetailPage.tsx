@@ -84,10 +84,12 @@ export function ReservaDetailPage() {
     return <Alert message={error || 'Reserva não encontrada'} />;
   }
 
-  const canManage = hasRole('GESTOR_RESERVAS') && !isAdmin && reserva.status === 'PENDENTE';
+  const isGestor = hasRole('GESTOR_RESERVAS') && !isAdmin;
+  const canConfirmar = reserva.status === 'PENDENTE';
+  const canRejeitar = isGestor && reserva.status === 'PENDENTE';
   const canCancel =
     (reserva.status === 'CONFIRMADA' || reserva.status === 'PENDENTE') &&
-    (isAdmin || !canManage);
+    (isAdmin || !canRejeitar);
 
   return (
     <div>
@@ -122,10 +124,8 @@ export function ReservaDetailPage() {
         </dl>
 
         <h3 className="section-title">Alocações</h3>
-        {reserva.status === 'CONFIRMADA' && reserva.alocacoes.length === 0 ? (
-          <p className="muted">Nenhuma posição alocada para esta reserva confirmada.</p>
-        ) : reserva.alocacoes.length === 0 ? (
-          <p className="muted">As posições serão exibidas após a confirmação da reserva.</p>
+        {reserva.alocacoes.length === 0 ? (
+          <p className="muted">Nenhuma posição alocada para esta reserva.</p>
         ) : (
           <div className="table-wrap">
             <table>
@@ -156,15 +156,27 @@ export function ReservaDetailPage() {
         )}
       </div>
 
-      {canManage && (
+      {canConfirmar && (
         <div className="card mt-lg">
-          <h3>Ações do gestor</h3>
-          <div className="btn-group">
-            <button type="button" className="btn btn-primary" disabled={actionLoading} onClick={handleConfirmar}>
-              Confirmar
-            </button>
-          </div>
-          <form onSubmit={handleRejeitar} className="form mt-md">
+          <h3>Confirmar reserva</h3>
+          <p className="muted">
+            A IA sugeriu as posições acima. Confirme manualmente para finalizar a reserva.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={actionLoading}
+            onClick={handleConfirmar}
+          >
+            Confirmar reserva
+          </button>
+        </div>
+      )}
+
+      {canRejeitar && (
+        <div className="card mt-lg">
+          <h3>Rejeitar reserva</h3>
+          <form onSubmit={handleRejeitar} className="form">
             <label>
               Motivo da rejeição
               <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} required rows={2} />

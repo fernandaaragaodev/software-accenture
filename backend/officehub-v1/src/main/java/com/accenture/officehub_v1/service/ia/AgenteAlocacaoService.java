@@ -8,6 +8,8 @@ import com.accenture.officehub_v1.entity.AgenteExecucao;
 import com.accenture.officehub_v1.entity.Posicao;
 import com.accenture.officehub_v1.entity.Sala;
 import com.accenture.officehub_v1.entity.enums.StatusAgente;
+import com.accenture.officehub_v1.exception.RegraNegocioException;
+import com.accenture.officehub_v1.repository.AgenteExecucaoRepository;
 import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
 import com.accenture.officehub_v1.service.ia.motor.MotorAlocacao;
@@ -37,6 +39,7 @@ public class AgenteAlocacaoService {
     private final MotorAlocacaoFactory motorAlocacaoFactory;
     private final AlocacaoEntradaBuilder alocacaoEntradaBuilder;
     private final AgenteExecucaoService agenteExecucaoService;
+    private final AgenteExecucaoRepository agenteExecucaoRepository;
     private final ObjectMapper objectMapper;
 
     public ResultadoExecucaoAgente executar(
@@ -46,6 +49,17 @@ public class AgenteAlocacaoService {
             List<PessoaReservaRequest> pessoas,
             String criterioProximidade,
             List<Posicao> posicoesLivres) {
+        return executar(sala, dataReserva, equipeId, pessoas, criterioProximidade, posicoesLivres, List.of());
+    }
+
+    public ResultadoExecucaoAgente executar(
+            Sala sala,
+            LocalDate dataReserva,
+            UUID equipeId,
+            List<PessoaReservaRequest> pessoas,
+            String criterioProximidade,
+            List<Posicao> posicoesLivres,
+            List<List<UUID>> combinacoesExcluidas) {
 
         AlocacaoAgenteEntradaDto entrada = alocacaoEntradaBuilder.montar(
                 sala,
@@ -53,10 +67,31 @@ public class AgenteAlocacaoService {
                 equipeId,
                 pessoas,
                 criterioProximidade,
-                posicoesLivres);
+                posicoesLivres,
+                combinacoesExcluidas);
 
         ExecucaoMotorResultado execucao = executarComFallback(entrada, pessoas, posicoesLivres);
         return new ResultadoExecucaoAgente(execucao.resultadoAlocacao(), execucao.execucaoId());
+    }
+
+    public ResultadoAlocacao recuperarResultadoExecucao(
+            UUID execucaoId,
+            List<PessoaReservaRequest> pessoas,
+            List<Posicao> posicoesLivres) {
+        AgenteExecucao execucao = agenteExecucaoRepository.findById(execucaoId)
+                .orElseThrow(() -> new RegraNegocioException("Sugestão de alocação não encontrada ou expirada."));
+
+        if (execucao.getReferenciaId() != null) {
+            throw new RegraNegocioException("Esta sugestão já foi utilizada em outra reserva.");
+        }
+
+        if (execucao.getStatus() != StatusAgente.SUCESSO) {
+            throw new RegraNegocioException("A sugestão de alocação não está disponível para confirmação.");
+        }
+
+        AlocacaoAgenteSaidaDto saida = objectMapper.convertValue(
+                execucao.getPayloadSaida(), AlocacaoAgenteSaidaDto.class);
+        return converterParaResultado(saida, pessoas, posicoesLivres);
     }
 
     public void vincularReferenciaReserva(UUID execucaoId, UUID reservaId) {

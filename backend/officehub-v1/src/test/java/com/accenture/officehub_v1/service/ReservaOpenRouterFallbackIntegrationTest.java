@@ -2,6 +2,7 @@ package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteEntradaDto;
 import com.accenture.officehub_v1.dto.ia.AlocacaoAgenteSaidaDto;
+import com.accenture.officehub_v1.dto.request.AceitarSugestaoReservaRequest;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.entity.Layout;
@@ -142,14 +143,14 @@ class ReservaOpenRouterFallbackIntegrationTest {
         when(motorAlocacaoOpenRouter.executar(any(AlocacaoAgenteEntradaDto.class)))
                 .thenThrow(new OpenRouterIndisponivelException("OpenRouter indisponível"));
 
-        var response = reservaService.solicitarReserva(
+        var response = aceitarSugestao(
                 request(CriterioProximidade.OBRIGATORIA, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
                 solicitanteId,
                 List.of(Roles.INTEGRADOR));
 
-        assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
+        assertThat(response.status()).isEqualTo(StatusReserva.PENDENTE);
         assertThat(response.alocacoes()).hasSize(2);
         assertThat(reservaRepository.count()).isEqualTo(1);
 
@@ -170,7 +171,7 @@ class ReservaOpenRouterFallbackIntegrationTest {
         when(motorAlocacaoOpenRouter.executar(any(AlocacaoAgenteEntradaDto.class)))
                 .thenThrow(new OpenRouterIndisponivelException("OpenRouter indisponível"));
 
-        assertThatThrownBy(() -> reservaService.solicitarReserva(
+        assertThatThrownBy(() -> reservaService.sugerirAlocacao(
                 request(CriterioProximidade.PREFERENCIAL, 2,
                         pessoa(solicitanteId, "Estação Padrão"),
                         pessoa(participante2Id, "Estação Padrão")),
@@ -191,12 +192,12 @@ class ReservaOpenRouterFallbackIntegrationTest {
                         List.of(new com.accenture.officehub_v1.dto.ia.PosicaoAlocadaSaidaDto(
                                 solicitanteId, posicaoId))));
 
-        var response = reservaService.solicitarReserva(
+        var response = aceitarSugestao(
                 request(CriterioProximidade.PREFERENCIAL, 1, pessoa("Estação Padrão")),
                 solicitanteId,
                 List.of(Roles.USUARIO_FINAL));
 
-        assertThat(response.status()).isEqualTo(StatusReserva.CONFIRMADA);
+        assertThat(response.status()).isEqualTo(StatusReserva.PENDENTE);
         assertThat(agenteExecucaoRepository.findAll()).hasSize(1);
         assertThat(agenteExecucaoRepository.findAll().get(0).getVersaoModelo())
                 .isEqualTo(ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1);
@@ -231,5 +232,16 @@ class ReservaOpenRouterFallbackIntegrationTest {
 
     private PessoaReservaRequest pessoa(UUID usuarioId, String tipoPreferido) {
         return new PessoaReservaRequest(usuarioId, null, tipoPreferido, null, null);
+    }
+
+    private com.accenture.officehub_v1.dto.response.ReservaResponse aceitarSugestao(
+            SolicitarReservaRequest req,
+            UUID solicitante,
+            List<String> perfis) {
+        var sugestao = reservaService.sugerirAlocacao(req, solicitante, perfis);
+        return reservaService.solicitarReserva(
+                new AceitarSugestaoReservaRequest(sugestao.execucaoId(), req),
+                solicitante,
+                perfis);
     }
 }

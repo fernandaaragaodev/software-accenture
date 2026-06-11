@@ -17,6 +17,12 @@ public record AlocacaoAgenteEntradaDto(
         @JsonProperty("coordEntradaX") BigDecimal coordEntradaX,
         @JsonProperty("coordEntradaY") BigDecimal coordEntradaY,
         @JsonProperty("pessoas") List<PessoaAlocacaoEntradaDto> pessoas,
-        @JsonProperty("posicoesLivres") List<PosicaoLivreEntradaDto> posicoesLivres
+        @JsonProperty("posicoesLivres") List<PosicaoLivreEntradaDto> posicoesLivres,
+        @JsonProperty("combinacoesExcluidas") List<List<UUID>> combinacoesExcluidas
 ) {
+    public AlocacaoAgenteEntradaDto {
+        if (combinacoesExcluidas == null) {
+            combinacoesExcluidas = List.of();
+        }
+    }
 }

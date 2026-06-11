@@ -29,6 +29,19 @@ public record ReservaPosicaoAlocadaResponse(
         return from(item.posicao());
     }
 
+    public static ReservaPosicaoAlocadaResponse from(
+            ItemAlocacao item,
+            String pessoaNome,
+            List<String> equipamentos) {
+        Posicao posicao = item.posicao();
+        return new ReservaPosicaoAlocadaResponse(
+                posicao.getId(),
+                posicao.getIdentificador(),
+                posicao.getTipo(),
+                pessoaNome,
+                equipamentos);
+    }
+
     public static ReservaPosicaoAlocadaResponse from(ReservaPosicao reservaPosicao, List<String> equipamentos) {
         Posicao posicao = reservaPosicao.getPosicao();
         String pessoaNome = reservaPosicao.getReservaPessoa().getUsuario() != null
