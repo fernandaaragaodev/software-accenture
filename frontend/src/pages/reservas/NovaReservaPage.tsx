@@ -79,8 +79,13 @@ export function NovaReservaPage() {
   const [loading, setLoading] = useState(false);
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [etapa, setEtapa] = useState<'formulario' | 'sugestao'>('formulario');
-  const [sugestao, setSugestao] = useState<SugestaoAlocacaoResponse | null>(null);
-  const [combinacoesExcluidas, setCombinacoesExcluidas] = useState<string[][]>([]);
+  const [cardapioSugestoes, setCardapioSugestoes] = useState<SugestaoAlocacaoResponse[]>([]);
+  const [sugestaoSelecionadaId, setSugestaoSelecionadaId] = useState<string | null>(null);
+
+  const sugestaoSelecionada = useMemo(
+    () => cardapioSugestoes.find((s) => s.execucaoId === sugestaoSelecionadaId) ?? null,
+    [cardapioSugestoes, sugestaoSelecionadaId],
+  );
 
   const opcoesEquipamento = useMemo(
     () => tiposEquipamento.filter((t) => t.ativo),
@@ -272,10 +277,10 @@ export function NovaReservaPage() {
     if (!request) return;
 
     setLoading(true);
-    setCombinacoesExcluidas([]);
     try {
       const resultado = await reservasApi.sugerir(request);
-      setSugestao(resultado);
+      setCardapioSugestoes([resultado]);
+      setSugestaoSelecionadaId(resultado.execucaoId);
       setEtapa('sugestao');
     } catch (err) {
       if (err instanceof ApiException && err.status === 409) {
@@ -290,18 +295,18 @@ export function NovaReservaPage() {
 
   async function handleSugerirOutra() {
     const request = montarRequest();
-    if (!request || !sugestao) return;
+    if (!request || cardapioSugestoes.length === 0) return;
 
-    const novasExcluidas = [...combinacoesExcluidas, sugestao.posicoesSugeridas];
+    const combinacoesExcluidas = cardapioSugestoes.map((s) => s.posicoesSugeridas);
     setLoading(true);
     setError('');
     try {
       const resultado = await reservasApi.sugerirOutra({
         reserva: request,
-        combinacoesExcluidas: novasExcluidas,
+        combinacoesExcluidas,
       });
-      setCombinacoesExcluidas(novasExcluidas);
-      setSugestao(resultado);
+      setCardapioSugestoes((prev) => [...prev, resultado]);
+      setSugestaoSelecionadaId(resultado.execucaoId);
     } catch (err) {
       if (err instanceof ApiException && err.status === 409) {
         setError(`Não há mais alternativas disponíveis: ${err.message}`);
@@ -315,13 +320,13 @@ export function NovaReservaPage() {
 
   async function handleCriarReservaPendente() {
     const request = montarRequest();
-    if (!request || !sugestao) return;
+    if (!request || !sugestaoSelecionada) return;
 
     setLoading(true);
     setError('');
     try {
       const reserva = await reservasApi.solicitar({
-        execucaoId: sugestao.execucaoId,
+        execucaoId: sugestaoSelecionada.execucaoId,
         reserva: request,
       });
       navigate(`/reservas/${reserva.id}`);
@@ -346,66 +351,110 @@ export function NovaReservaPage() {
         title="Nova Reserva"
         subtitle={
           etapa === 'sugestao'
-            ? 'Revise a sugestão da IA e confirme manualmente a reserva'
+            ? 'Escolha uma das sugestões do cardápio e confirme a reserva'
             : 'A IA sugere posições com base nas preferências — você confirma ao final'
         }
       />
 
       <Alert message={error} />
 
-      {etapa === 'sugestao' && sugestao && (
+      {etapa === 'sugestao' && cardapioSugestoes.length > 0 && (
         <div className="card mt-lg">
-          <h3>Sugestão da IA</h3>
-          {sugestao.avisoProximidade && (
-            <p className="warning-text">{sugestao.avisoProximidade}</p>
-          )}
-          <div className="table-wrap mt-md">
-            <table>
-              <thead>
-                <tr>
-                  <th>Participante</th>
-                  <th>Posição sugerida</th>
-                  <th>Equipamentos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sugestao.alocacoes.map((a) => (
-                  <tr key={a.posicaoId}>
-                    <td>{a.pessoaNome ?? '—'}</td>
-                    <td><strong>{a.posicaoIdentificador}</strong></td>
-                    <td>{a.equipamentos?.length ? a.equipamentos.join(', ') : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="form-actions mt-md">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setEtapa('formulario');
-                setSugestao(null);
-                setCombinacoesExcluidas([]);
-              }}
-            >
-              Voltar ao formulário
-            </button>
+          <div className="flex-between">
+            <div>
+              <h3>Cardápio de sugestões</h3>
+              <p className="muted">
+                {cardapioSugestoes.length === 1
+                  ? '1 opção disponível. Peça mais sugestões ou escolha esta para reservar.'
+                  : `${cardapioSugestoes.length} opções disponíveis. Selecione a que preferir.`}
+              </p>
+            </div>
             <button
               type="button"
               className="btn btn-ghost"
               disabled={loading}
               onClick={handleSugerirOutra}
             >
-              {loading ? 'Buscando...' : 'Sugerir outra opção'}
+              {loading ? 'Buscando...' : '＋ Pedir outra sugestão'}
+            </button>
+          </div>
+
+          <div className="suggestion-menu-grid mt-md">
+            {cardapioSugestoes.map((item, index) => {
+              const selecionada = item.execucaoId === sugestaoSelecionadaId;
+              return (
+                <button
+                  key={item.execucaoId}
+                  type="button"
+                  className={`suggestion-option-card${selecionada ? ' selected' : ''}`}
+                  onClick={() => setSugestaoSelecionadaId(item.execucaoId)}
+                >
+                  <div className="suggestion-option-header">
+                    <strong>Opção {index + 1}</strong>
+                    {selecionada && <span className="suggestion-selected-badge">Selecionada</span>}
+                  </div>
+                  <ul className="suggestion-option-list">
+                    {item.alocacoes.map((a) => (
+                      <li key={`${item.execucaoId}-${a.posicaoId}`}>
+                        <span>{a.pessoaNome ?? 'Participante'}</span>
+                        <strong>{a.posicaoIdentificador}</strong>
+                        {a.equipamentos?.length ? (
+                          <small>{a.equipamentos.join(', ')}</small>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {item.avisoProximidade && (
+                    <p className="warning-text suggestion-option-warning">{item.avisoProximidade}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {sugestaoSelecionada && (
+            <div className="table-wrap mt-lg">
+              <h4>Detalhes da opção selecionada</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Participante</th>
+                    <th>Posição sugerida</th>
+                    <th>Equipamentos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sugestaoSelecionada.alocacoes.map((a) => (
+                    <tr key={a.posicaoId}>
+                      <td>{a.pessoaNome ?? '—'}</td>
+                      <td><strong>{a.posicaoIdentificador}</strong></td>
+                      <td>{a.equipamentos?.length ? a.equipamentos.join(', ') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="form-actions mt-md">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setEtapa('formulario');
+                setCardapioSugestoes([]);
+                setSugestaoSelecionadaId(null);
+              }}
+            >
+              Voltar ao formulário
             </button>
             <button
               type="button"
               className="btn btn-primary"
-              disabled={loading}
+              disabled={loading || !sugestaoSelecionada}
               onClick={handleCriarReservaPendente}
             >
-              {loading ? 'Criando...' : 'Criar reserva para confirmação'}
+              {loading ? 'Criando...' : 'Criar reserva com opção selecionada'}
             </button>
           </div>
         </div>
@@ -522,7 +571,7 @@ export function NovaReservaPage() {
             <strong>Sugestão de posições por IA</strong>
             <p>
               A IA analisa preferências de equipamento e proximidade para sugerir posições.
-              Você pode pedir outra opção ou confirmar manualmente a reserva ao final.
+              Você pode pedir várias sugestões e escolher a melhor no cardápio antes de confirmar.
             </p>
           </div>
 

@@ -22,8 +22,8 @@ export function ReservasListPage() {
     setLoading(true);
     setError('');
     try {
-      const lista = await reservasApi.listar(aba === 'canceladas');
-      setReservas(lista);
+      const resposta = await reservasApi.listar(aba === 'canceladas', undefined, 0, 100);
+      setReservas(resposta.content);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao carregar reservas');
       setReservas([]);
@@ -130,8 +130,8 @@ export function GestaoReservasPage() {
     setLoading(true);
     setError('');
     try {
-      const lista = await reservasApi.listar(false);
-      setReservas(lista);
+      const resposta = await reservasApi.listar(false, undefined, 0, 100);
+      setReservas(resposta.content);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao carregar reservas');
       setReservas([]);

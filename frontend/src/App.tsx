@@ -44,7 +44,6 @@ export default function App() {
                 <Route path="ia-execucoes" element={<IaExecucoesPage />} />
                 <Route path="admin/reservas" element={<AdminReservasPage />} />
                 <Route path="admin/reservas/:id" element={<ReservaDetailPage />} />
-                <Route path="disponibilidade" element={<DisponibilidadePage />} />
               </Route>
 
               <Route element={<ProtectedRoute roles={['USUARIO_FINAL']} />}>
@@ -62,6 +61,15 @@ export default function App() {
                 <Route path="reservas" element={<ReservasListPage />} />
                 <Route path="reservas/nova" element={<NovaReservaPage />} />
                 <Route path="reservas/:id" element={<ReservaDetailPage />} />
+              </Route>
+
+              <Route
+                element={
+                  <ProtectedRoute
+                    roles={['ADMIN_SALA', 'USUARIO_FINAL', 'GESTOR_RESERVAS', 'INTEGRADOR']}
+                  />
+                }
+              >
                 <Route path="disponibilidade" element={<DisponibilidadePage />} />
               </Route>
 

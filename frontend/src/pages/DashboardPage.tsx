@@ -124,16 +124,17 @@ export function DashboardPage() {
         )}
 
         {hasAnyRole(['USUARIO_FINAL', 'GESTOR_RESERVAS', 'INTEGRADOR']) && (
-          <>
-            <Link to="/reservas/nova" className="dashboard-card">
-              <h3>Nova Reserva</h3>
-              <p>Solicitar reserva com alocação automática de posições.</p>
-            </Link>
-            <Link to="/disponibilidade" className="dashboard-card">
-              <h3>Disponibilidade</h3>
-              <p>Consultar posições livres e ocupadas por data.</p>
-            </Link>
-          </>
+          <Link to="/reservas/nova" className="dashboard-card">
+            <h3>Nova Reserva</h3>
+            <p>Solicitar reserva com alocação automática de posições.</p>
+          </Link>
+        )}
+
+        {hasAnyRole(['ADMIN_SALA', 'USUARIO_FINAL', 'GESTOR_RESERVAS', 'INTEGRADOR']) && (
+          <Link to="/disponibilidade" className="dashboard-card">
+            <h3>Disponibilidade</h3>
+            <p>Consultar posições livres e ocupadas por data.</p>
+          </Link>
         )}
 
         {hasAnyRole(['GESTOR_RESERVAS']) && (

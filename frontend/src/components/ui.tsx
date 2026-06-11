@@ -81,6 +81,57 @@ export function LoadingState({ message = 'Carregando...' }: LoadingStateProps) {
   );
 }
 
+interface PaginationProps {
+  page: number;
+  totalPages: number;
+  totalElements: number;
+  size: number;
+  onPageChange: (page: number) => void;
+}
+
+export function Pagination({
+  page,
+  totalPages,
+  totalElements,
+  size,
+  onPageChange,
+}: PaginationProps) {
+  if (totalElements === 0) return null;
+
+  const inicio = page * size + 1;
+  const fim = Math.min((page + 1) * size, totalElements);
+  const paginaAtual = page + 1;
+
+  return (
+    <div className="pagination-bar">
+      <p className="pagination-info">
+        Mostrando {inicio}–{fim} de {totalElements} reservas
+      </p>
+      <div className="pagination-controls">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={page <= 0}
+          onClick={() => onPageChange(page - 1)}
+        >
+          ← Anterior
+        </button>
+        <span className="pagination-status">
+          Página {paginaAtual} de {Math.max(totalPages, 1)}
+        </span>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={page >= totalPages - 1}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Próxima →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface SkeletonGridProps {
   count?: number;
   variant?: 'stat' | 'card' | 'row';
