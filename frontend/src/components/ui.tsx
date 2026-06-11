@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 interface AlertProps {
   type?: 'error' | 'success' | 'info';
@@ -7,7 +7,11 @@ interface AlertProps {
 
 export function Alert({ type = 'error', message }: AlertProps) {
   if (!message) return null;
-  return <div className={`alert alert-${type}`}>{message}</div>;
+  return (
+    <div className={`alert alert-${type}`} role="alert">
+      {message}
+    </div>
+  );
 }
 
 interface PageHeaderProps {
@@ -63,3 +67,97 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
     </div>
   );
 }
+
+interface LoadingStateProps {
+  message?: string;
+}
+
+export function LoadingState({ message = 'Carregando...' }: LoadingStateProps) {
+  return (
+    <div className="loading-state" role="status" aria-live="polite">
+      <div className="spinner" aria-hidden="true" />
+      <p>{message}</p>
+    </div>
+  );
+}
+
+interface SkeletonGridProps {
+  count?: number;
+  variant?: 'stat' | 'card' | 'row';
+}
+
+export function SkeletonGrid({ count = 4, variant = 'stat' }: SkeletonGridProps) {
+  const className =
+    variant === 'card' ? 'skeleton skeleton-card' :
+    variant === 'row' ? 'skeleton skeleton-row' :
+    'skeleton skeleton-stat';
+
+  return (
+    <div className={variant === 'stat' ? 'stats-grid' : variant === 'card' ? 'dashboard-grid' : undefined}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className={className} aria-hidden="true" />
+      ))}
+    </div>
+  );
+}
+
+interface ConfirmDialogProps {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'primary';
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+  variant = 'primary',
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div className="modal">
+        <h3 id="confirm-title">{title}</h3>
+        <p>{message}</p>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={`btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN_SALA: 'Admin Sala',
+  GESTOR_RESERVAS: 'Gestor de Reservas',
+  USUARIO_FINAL: 'Usuário Final',
+  INTEGRADOR: 'Integrador',
+};
