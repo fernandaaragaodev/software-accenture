@@ -19,7 +19,9 @@ import { ReservaDetailPage } from './pages/reservas/ReservaDetailPage';
 import { AdminReservasPage } from './pages/admin/AdminReservasPage';
 import { GestaoReservasPage, ReservasListPage } from './pages/reservas/ReservasListPage';
 import { SalaDetailPage } from './pages/salas/SalaDetailPage';
-import { SalaFormPage, SalasListPage } from './pages/salas/SalasPages';
+import { SalaEditPage } from './pages/salas/SalaEditPage';
+import { SalasListPage } from './pages/salas/SalasListPage';
+import { SalaWizardPage } from './pages/salas/SalaWizardPage';
 
 export default function App() {
   return (
@@ -34,7 +36,8 @@ export default function App() {
 
               <Route element={<ProtectedRoute roles={['ADMIN_SALA']} />}>
                 <Route path="salas" element={<SalasListPage />} />
-                <Route path="salas/nova" element={<SalaFormPage />} />
+                <Route path="salas/nova" element={<SalaWizardPage />} />
+                <Route path="salas/:id/editar" element={<SalaEditPage />} />
                 <Route path="salas/:id" element={<SalaDetailPage />} />
                 <Route path="layouts" element={<LayoutsPage />} />
                 <Route path="posicoes" element={<PosicoesPage />} />
