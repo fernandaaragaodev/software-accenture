@@ -77,7 +77,8 @@ public class AlocacaoRespostaValidador {
             }
 
             if (!posicoesLivres.containsKey(alocacao.posicaoId())) {
-                return Optional.of("A IA utilizou posição ocupada, inexistente ou indisponível.");
+                return Optional.of(
+                        "A IA utilizou posição bloqueada, ocupada, inexistente ou indisponível.");
             }
         }
 

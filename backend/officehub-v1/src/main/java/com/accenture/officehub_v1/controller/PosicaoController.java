@@ -52,6 +52,16 @@ public class PosicaoController {
         return ResponseEntity.ok(posicaoService.atualizarCoordenadas(id, request));
     }
 
+    @PatchMapping("/api/v1/posicoes/{id}/bloquear")
+    public ResponseEntity<PosicaoResponse> bloquear(@PathVariable UUID id) {
+        return ResponseEntity.ok(posicaoService.bloquear(id));
+    }
+
+    @PatchMapping("/api/v1/posicoes/{id}/desbloquear")
+    public ResponseEntity<PosicaoResponse> desbloquear(@PathVariable UUID id) {
+        return ResponseEntity.ok(posicaoService.desbloquear(id));
+    }
+
     @PatchMapping("/api/v1/posicoes/{id}/inativar")
     public ResponseEntity<PosicaoResponse> inativar(@PathVariable UUID id) {
         return ResponseEntity.ok(posicaoService.inativar(id));

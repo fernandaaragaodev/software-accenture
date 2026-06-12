@@ -19,6 +19,8 @@ public final class OpenRouterAlocacaoPrompt {
 
             REGRAS:
             1. Use somente UUIDs presentes em pessoas[].id e posicoesLivres[].id. Nunca invente IDs.
+               posicoesLivres contém apenas posições ATIVAS e livres no horário; posições bloqueadas
+               ou inativas não aparecem na lista e nunca podem ser sugeridas.
             2. Aloque cada pessoa exatamente uma vez e use cada posição no máximo uma vez.
             3. Se existir solução, retorne sucesso=true e preencha alocacoes com todos os participantes.
             4. Se não existir solução válida, retorne sucesso=false, alocacoes=[] e explique em motivoFalha.

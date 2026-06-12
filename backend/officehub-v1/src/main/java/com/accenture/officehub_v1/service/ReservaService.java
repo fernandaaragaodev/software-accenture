@@ -384,6 +384,12 @@ public class ReservaService {
 
     private void persistirPessoasEPosicoes(Reserva reserva, List<ItemAlocacao> alocacoes) {
         for (ItemAlocacao item : alocacoes) {
+            if (!PosicaoStatus.isAtiva(item.posicao())) {
+                throw new ConflitoAlocacaoException(
+                        "A posição " + item.posicao().getIdentificador()
+                                + " está bloqueada e não pode ser reservada.");
+            }
+
             ReservaPessoa pessoa = salvarReservaPessoa(reserva, item.pessoa());
 
             ReservaPosicao reservaPosicao = ReservaPosicao.builder()

@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -78,20 +77,22 @@ public class PosicaoService {
     }
 
     @Transactional
-    public PosicaoResponse inativar(UUID id) {
-        Posicao posicao = buscarEntidadeAtiva(id);
+    public PosicaoResponse bloquear(UUID id) {
+        Posicao posicao = buscarEntidade(id);
+        if (!PosicaoStatus.isAtiva(posicao)) {
+            throw new RegraNegocioException("A posição já está bloqueada.");
+        }
+
         posicao.setStatus(PosicaoStatus.INATIVA);
-        posicao.setDeletedAt(OffsetDateTime.now());
-        return PosicaoResponse.from(posicaoRepository.save(posicao));
+        Posicao posicaoSalva = posicaoRepository.save(posicao);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "BLOQUEAR", "Posicao", posicaoSalva.getId());
+        return PosicaoResponse.from(posicaoSalva);
     }
 
     @Transactional
-    public PosicaoResponse reativar(UUID id) {
-        Posicao posicao = posicaoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "Posição não encontrada."));
-
-        if (posicao.getDeletedAt() == null && PosicaoStatus.ATIVA.equalsIgnoreCase(posicao.getStatus())) {
+    public PosicaoResponse desbloquear(UUID id) {
+        Posicao posicao = buscarEntidade(id);
+        if (PosicaoStatus.isAtiva(posicao)) {
             throw new RegraNegocioException("A posição já está ativa.");
         }
 
@@ -101,16 +102,34 @@ public class PosicaoService {
                 posicao.getId());
 
         posicao.setStatus(PosicaoStatus.ATIVA);
-        posicao.setDeletedAt(null);
         Posicao posicaoSalva = posicaoRepository.save(posicao);
-        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "REATIVAR", "Posicao", posicaoSalva.getId());
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "DESBLOQUEAR", "Posicao", posicaoSalva.getId());
         return PosicaoResponse.from(posicaoSalva);
     }
 
+    @Transactional
+    public PosicaoResponse inativar(UUID id) {
+        return bloquear(id);
+    }
+
+    @Transactional
+    public PosicaoResponse reativar(UUID id) {
+        return desbloquear(id);
+    }
+
     public Posicao buscarEntidadeAtiva(UUID id) {
+        Posicao posicao = buscarEntidade(id);
+        if (!PosicaoStatus.isAtiva(posicao)) {
+            throw new RecursoNaoEncontradoException(
+                    "Posição não encontrada ou foi bloqueada.");
+        }
+        return posicao;
+    }
+
+    public Posicao buscarEntidade(UUID id) {
         return posicaoRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "Posição não encontrada ou foi inativada."));
+                        "Posição não encontrada."));
     }
 
     public List<Posicao> listarPosicoesAtivasDaSala(UUID salaId) {
@@ -120,7 +139,7 @@ public class PosicaoService {
         }
 
         return posicaoRepository.findBySalaIdAndDeletedAtIsNull(salaId).stream()
-                .filter(p -> PosicaoStatus.ATIVA.equals(p.getStatus()))
+                .filter(PosicaoStatus::isAtiva)
                 .filter(p -> p.getLayout() != null && layoutAtivo.getId().equals(p.getLayout().getId()))
                 .toList();
     }

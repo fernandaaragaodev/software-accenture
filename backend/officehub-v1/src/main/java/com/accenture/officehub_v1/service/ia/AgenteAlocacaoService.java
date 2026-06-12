@@ -367,7 +367,8 @@ public class AgenteAlocacaoService {
             Posicao posicao = posicoesPorId.get(alocacao.posicaoId());
 
             if (pessoa == null || posicao == null) {
-                return ResultadoAlocacao.falha("Alocação retornada com referências inválidas.");
+                return ResultadoAlocacao.falha(
+                        "A sugestão inclui posição bloqueada, ocupada ou indisponível. Solicite uma nova alocação.");
             }
 
             itens.add(new ItemAlocacao(pessoa, posicao));

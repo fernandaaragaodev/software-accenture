@@ -221,27 +221,27 @@ export function PosicoesPage() {
     }
   }
 
-  async function handleInativar(id: string) {
+  async function handleBloquear(id: string) {
     try {
-      await posicoesApi.inativar(id);
+      const bloqueada = await posicoesApi.bloquear(id);
       setPosicoes((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: 'INATIVA' as const } : p)),
+        prev.map((p) => (p.id === id ? bloqueada : p)),
       );
-      setSuccess('Posição inativada');
+      setSuccess('Posição bloqueada — não estará disponível para reservas');
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : 'Erro ao inativar');
+      setError(err instanceof ApiException ? err.message : 'Erro ao bloquear posição');
     }
   }
 
-  async function handleReativar(id: string) {
+  async function handleDesbloquear(id: string) {
     try {
-      const reativada = await posicoesApi.reativar(id);
+      const desbloqueada = await posicoesApi.desbloquear(id);
       setPosicoes((prev) =>
-        prev.map((p) => (p.id === id ? reativada : p)),
+        prev.map((p) => (p.id === id ? desbloqueada : p)),
       );
-      setSuccess('Posição reativada');
+      setSuccess('Posição desbloqueada');
     } catch (err) {
-      setError(err instanceof ApiException ? err.message : 'Erro ao reativar');
+      setError(err instanceof ApiException ? err.message : 'Erro ao desbloquear posição');
     }
   }
 
@@ -249,7 +249,7 @@ export function PosicoesPage() {
     <div>
       <PageHeader
         title="Posições"
-        subtitle="Cadastre assentos vinculados ao layout aprovado da sala"
+        subtitle="Cadastre assentos e bloqueie posições indisponíveis para reserva"
       />
       <Alert message={error} />
       <Alert type="success" message={success} />
@@ -318,12 +318,12 @@ export function PosicoesPage() {
                       <td><StatusBadge status={p.status} /></td>
                       <td>
                         {p.status === 'ATIVA' ? (
-                          <button type="button" className="btn btn-sm btn-danger" onClick={() => handleInativar(p.id)}>
-                            Inativar
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => handleBloquear(p.id)}>
+                            Bloquear
                           </button>
                         ) : (
-                          <button type="button" className="btn btn-sm btn-primary" onClick={() => handleReativar(p.id)}>
-                            Reativar
+                          <button type="button" className="btn btn-sm btn-primary" onClick={() => handleDesbloquear(p.id)}>
+                            Desbloquear
                           </button>
                         )}
                       </td>

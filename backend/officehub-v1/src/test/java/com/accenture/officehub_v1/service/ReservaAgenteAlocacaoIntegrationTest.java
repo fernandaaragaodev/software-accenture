@@ -56,6 +56,9 @@ class ReservaAgenteAlocacaoIntegrationTest {
     private PosicaoRepository posicaoRepository;
 
     @Autowired
+    private PosicaoService posicaoService;
+
+    @Autowired
     private UsuarioRepository usuarioRepository;
 
     @Autowired
@@ -202,6 +205,42 @@ class ReservaAgenteAlocacaoIntegrationTest {
     }
 
     @Test
+    void naoDeveSugerirPosicaoBloqueada() {
+        criarPosicao("P-01", "Estação Padrão", 0, 0);
+        UUID posicaoBloqueada = criarPosicao("P-02", "Estação Padrão", 2, 0);
+
+        posicaoService.bloquear(posicaoBloqueada);
+
+        var sugestao = reservaService.sugerirAlocacao(
+                request(CriterioProximidade.PREFERENCIAL, 1, pessoa(solicitanteId, "Estação Padrão")),
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL));
+
+        assertThat(sugestao.alocacoes()).hasSize(1);
+        assertThat(sugestao.alocacoes().get(0).posicaoId()).isNotEqualTo(posicaoBloqueada);
+        assertThat(sugestao.posicoesSugeridas()).doesNotContain(posicaoBloqueada);
+    }
+
+    @Test
+    void deveFalharQuandoTodasPosicoesCompativeisEstaoBloqueadas() {
+        UUID posicao1 = criarPosicao("P-01", "Estação Padrão", 0, 0);
+        UUID posicao2 = criarPosicao("P-02", "Estação Padrão", 2, 0);
+
+        posicaoService.bloquear(posicao1);
+        posicaoService.bloquear(posicao2);
+
+        assertThatThrownBy(() -> reservaService.sugerirAlocacao(
+                request(CriterioProximidade.PREFERENCIAL, 1, pessoa(solicitanteId, "Estação Padrão")),
+                solicitanteId,
+                List.of(Roles.USUARIO_FINAL)))
+                .isInstanceOf(ConflitoAlocacaoException.class)
+                .hasMessageContaining("posições livres");
+
+        assertThat(reservaRepository.count()).isZero();
+        assertLogFalha();
+    }
+
+    @Test
     void deveTerSucessoComProximidadePreferencialMesmoForaDoRaio() {
         criarPosicao("P-01", "Estação Padrão", 0, 0);
         criarPosicao("P-02", "Estação Padrão", 10, 0);
@@ -231,11 +270,11 @@ class ReservaAgenteAlocacaoIntegrationTest {
         assertThat(logs.get(0).getReferenciaId()).isNull();
     }
 
-    private void criarPosicao(String identificador, String tipo, double x, double y) {
+    private UUID criarPosicao(String identificador, String tipo, double x, double y) {
         Sala sala = salaRepository.findById(salaId).orElseThrow();
         Layout layout = layoutRepository.findBySalaIdAndAtivoTrue(salaId).orElseThrow();
 
-        posicaoRepository.save(Posicao.builder()
+        return posicaoRepository.save(Posicao.builder()
                 .sala(sala)
                 .layout(layout)
                 .identificador(identificador)
@@ -243,7 +282,7 @@ class ReservaAgenteAlocacaoIntegrationTest {
                 .coordX(BigDecimal.valueOf(x))
                 .coordY(BigDecimal.valueOf(y))
                 .status(PosicaoStatus.ATIVA)
-                .build());
+                .build()).getId();
     }
 
     private SolicitarReservaRequest request(String criterio, int qtd, PessoaReservaRequest... pessoas) {

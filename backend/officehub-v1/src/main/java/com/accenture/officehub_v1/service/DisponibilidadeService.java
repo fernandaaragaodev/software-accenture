@@ -365,8 +365,7 @@ public class DisponibilidadeService {
     }
 
     private String resolverSituacao(Posicao posicao, List<UUID> posicoesOcupadasIds) {
-        if (posicao.getDeletedAt() != null
-                || PosicaoStatus.INATIVA.equalsIgnoreCase(posicao.getStatus())) {
+        if (posicao.getDeletedAt() != null || !PosicaoStatus.isAtiva(posicao)) {
             return PosicaoStatus.INATIVA;
         }
 

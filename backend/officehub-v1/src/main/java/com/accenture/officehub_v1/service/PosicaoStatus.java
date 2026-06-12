@@ -1,5 +1,7 @@
 package com.accenture.officehub_v1.service;
 
+import com.accenture.officehub_v1.entity.Posicao;
+
 public final class PosicaoStatus {
 
     public static final String ATIVA = "ATIVA";
@@ -10,5 +12,13 @@ public final class PosicaoStatus {
     public static final String OCUPADA = "OCUPADA";
 
     private PosicaoStatus() {
+    }
+
+    public static boolean isAtiva(Posicao posicao) {
+        return posicao != null && isAtiva(posicao.getStatus());
+    }
+
+    public static boolean isAtiva(String status) {
+        return status != null && ATIVA.equalsIgnoreCase(status.trim());
     }
 }
