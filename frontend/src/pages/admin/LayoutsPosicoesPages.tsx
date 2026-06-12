@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { layoutsApi } from '../../api/layouts';
 import { posicoesApi } from '../../api/posicoes';
@@ -8,8 +9,9 @@ import { Alert, EmptyState, PageHeader, StatusBadge } from '../../components/ui'
 import type { LayoutResponse, PosicaoResponse, SalaResponse } from '../../types';
 
 export function LayoutsPage() {
+  const [searchParams] = useSearchParams();
   const [salas, setSalas] = useState<SalaResponse[]>([]);
-  const [salaId, setSalaId] = useState('');
+  const [salaId, setSalaId] = useState(searchParams.get('salaId') ?? '');
   const [layout, setLayout] = useState<LayoutResponse | null>(null);
   const [layouts, setLayouts] = useState<LayoutResponse[]>([]);
   const [versao, setVersao] = useState('');
@@ -20,9 +22,14 @@ export function LayoutsPage() {
   useEffect(() => {
     salasApi.listar().then((data) => {
       setSalas(data);
-      if (data.length > 0) setSalaId(data[0].id);
+      const paramSalaId = searchParams.get('salaId');
+      if (paramSalaId && data.some((s) => s.id === paramSalaId)) {
+        setSalaId(paramSalaId);
+      } else if (data.length > 0 && !salaId) {
+        setSalaId(data[0].id);
+      }
     }).catch(() => setSalas([]));
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!salaId) return;
@@ -156,8 +163,9 @@ export function LayoutsPage() {
 }
 
 export function PosicoesPage() {
+  const [searchParams] = useSearchParams();
   const [salas, setSalas] = useState<SalaResponse[]>([]);
-  const [salaId, setSalaId] = useState('');
+  const [salaId, setSalaId] = useState(searchParams.get('salaId') ?? '');
   const [posicoes, setPosicoes] = useState<PosicaoResponse[]>([]);
   const [identificador, setIdentificador] = useState('');
   const [tipo, setTipo] = useState('');
@@ -170,9 +178,14 @@ export function PosicoesPage() {
   useEffect(() => {
     salasApi.listar().then((data) => {
       setSalas(data);
-      if (data.length > 0) setSalaId(data[0].id);
+      const paramSalaId = searchParams.get('salaId');
+      if (paramSalaId && data.some((s) => s.id === paramSalaId)) {
+        setSalaId(paramSalaId);
+      } else if (data.length > 0 && !salaId) {
+        setSalaId(data[0].id);
+      }
     });
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!salaId) return;

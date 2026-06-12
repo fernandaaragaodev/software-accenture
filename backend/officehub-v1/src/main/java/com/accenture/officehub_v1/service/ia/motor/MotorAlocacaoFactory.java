@@ -25,8 +25,4 @@ public class MotorAlocacaoFactory {
     public boolean usaOpenRouterComoPrincipal() {
         return iaProperties.motor() == TipoMotorAlocacao.OPENROUTER;
     }
-
-    public MotorAlocacaoOpenRouter obterMotorOpenRouter() {
-        return motorAlocacaoOpenRouter;
-    }
 }

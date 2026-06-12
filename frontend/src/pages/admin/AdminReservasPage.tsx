@@ -2,20 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { reservasApi } from '../../api/reservas';
-import { Alert, EmptyState, PageHeader, Pagination, StatusBadge } from '../../components/ui';
-import type { PageResponse, ReservaResumoResponse } from '../../types';
-
-const TAMANHO_PAGINA = 15;
-
-const PAGINA_VAZIA: PageResponse<ReservaResumoResponse> = {
-  content: [],
-  page: 0,
-  size: TAMANHO_PAGINA,
-  totalElements: 0,
-  totalPages: 0,
-  first: true,
-  last: true,
-};
+import { Alert, EmptyState, PageHeader, StatusBadge } from '../../components/ui';
+import type { ReservaResumoResponse } from '../../types';
 
 function formatarHorario(value: string) {
   return value?.slice(0, 5) ?? '';
@@ -24,8 +12,7 @@ function formatarHorario(value: string) {
 export function AdminReservasPage() {
   const [aba, setAba] = useState<'ativas' | 'canceladas'>('ativas');
   const [data, setData] = useState('');
-  const [pagina, setPagina] = useState(0);
-  const [resultado, setResultado] = useState<PageResponse<ReservaResumoResponse>>(PAGINA_VAZIA);
+  const [reservas, setReservas] = useState<ReservaResumoResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -33,30 +20,19 @@ export function AdminReservasPage() {
     setLoading(true);
     setError('');
     try {
-      const resposta = await reservasApi.listar(
-        aba === 'canceladas',
-        data || undefined,
-        pagina,
-        TAMANHO_PAGINA,
-      );
-      setResultado(resposta);
+      const lista = await reservasApi.listar(aba === 'canceladas', data || undefined);
+      setReservas(lista);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao carregar reservas');
-      setResultado(PAGINA_VAZIA);
+      setReservas([]);
     } finally {
       setLoading(false);
     }
-  }, [data, aba, pagina]);
+  }, [data, aba]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
-
-  useEffect(() => {
-    setPagina(0);
-  }, [aba, data]);
-
-  const reservas = resultado.content;
 
   return (
     <div>
@@ -115,54 +91,44 @@ export function AdminReservasPage() {
           }
         />
       ) : (
-        <>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sala</th>
-                  <th>Solicitante</th>
-                  <th>Data</th>
-                  <th>Horário</th>
-                  <th>Pessoas</th>
-                  <th>Status</th>
-                  {aba === 'canceladas' && <th>Cancelado por</th>}
-                  <th>Ações</th>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sala</th>
+                <th>Solicitante</th>
+                <th>Data</th>
+                <th>Horário</th>
+                <th>Pessoas</th>
+                <th>Status</th>
+                {aba === 'canceladas' && <th>Cancelado por</th>}
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reservas.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.salaNome}</td>
+                  <td>{r.solicitanteNome}</td>
+                  <td>{r.dataReserva}</td>
+                  <td>
+                    {formatarHorario(r.horaInicio)} – {formatarHorario(r.horaFim)}
+                  </td>
+                  <td>{r.quantidadePessoas}</td>
+                  <td><StatusBadge status={r.status} /></td>
+                  {aba === 'canceladas' && (
+                    <td>{r.canceladoPorNome ?? '—'}</td>
+                  )}
+                  <td>
+                    <Link to={`/admin/reservas/${r.id}`} className="btn btn-sm btn-ghost">
+                      Detalhes
+                    </Link>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {reservas.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.salaNome}</td>
-                    <td>{r.solicitanteNome}</td>
-                    <td>{r.dataReserva}</td>
-                    <td>
-                      {formatarHorario(r.horaInicio)} – {formatarHorario(r.horaFim)}
-                    </td>
-                    <td>{r.quantidadePessoas}</td>
-                    <td><StatusBadge status={r.status} /></td>
-                    {aba === 'canceladas' && (
-                      <td>{r.canceladoPorNome ?? '—'}</td>
-                    )}
-                    <td>
-                      <Link to={`/admin/reservas/${r.id}`} className="btn btn-sm btn-ghost">
-                        Detalhes
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination
-            page={resultado.page}
-            totalPages={resultado.totalPages}
-            totalElements={resultado.totalElements}
-            size={resultado.size}
-            onPageChange={setPagina}
-          />
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

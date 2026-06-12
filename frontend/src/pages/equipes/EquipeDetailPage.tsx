@@ -1,22 +1,20 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { equipesApi } from '../../api/equipes';
 import { usuariosApi } from '../../api/usuarios';
-import { Alert, ConfirmDialog, LoadingState, PageHeader } from '../../components/ui';
+import { Alert, PageHeader } from '../../components/ui';
 import type { EquipeResponse, UsuarioResumo } from '../../types';
 
 export function EquipeDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [equipe, setEquipe] = useState<EquipeResponse | null>(null);
   const [usuarioId, setUsuarioId] = useState('');
   const [usuarios, setUsuarios] = useState<UsuarioResumo[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
-  const [confirmDesmembrar, setConfirmDesmembrar] = useState(false);
 
   function loadEquipe() {
     if (!id) return;
@@ -60,19 +58,17 @@ export function EquipeDetailPage() {
   }
 
   async function handleDesmembrar() {
-    if (!id) return;
+    if (!id || !confirm('Deseja realmente desmembrar esta equipe?')) return;
     try {
       await equipesApi.desmembrar(id);
-      navigate('/equipes');
+      window.location.href = '/equipes';
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao desmembrar equipe');
-    } finally {
-      setConfirmDesmembrar(false);
     }
   }
 
   if (loading) {
-    return <LoadingState message="Carregando equipe..." />;
+    return <div className="page-center"><div className="spinner" /></div>;
   }
 
   if (!equipe) {
@@ -145,20 +141,10 @@ export function EquipeDetailPage() {
       </div>
 
       <div className="mt-lg">
-        <button type="button" className="btn btn-danger" onClick={() => setConfirmDesmembrar(true)}>
+        <button type="button" className="btn btn-danger" onClick={handleDesmembrar}>
           Desmembrar equipe
         </button>
       </div>
-
-      <ConfirmDialog
-        open={confirmDesmembrar}
-        title="Desmembrar equipe"
-        message="Deseja realmente desmembrar esta equipe? Esta ação não pode ser desfeita."
-        confirmLabel="Desmembrar"
-        variant="danger"
-        onConfirm={handleDesmembrar}
-        onCancel={() => setConfirmDesmembrar(false)}
-      />
     </div>
   );
 }

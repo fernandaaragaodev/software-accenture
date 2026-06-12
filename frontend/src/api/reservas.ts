@@ -3,7 +3,6 @@ import type {
   AceitarSugestaoReservaRequest,
   CancelarReservaRequest,
   RejeitarReservaRequest,
-  PageResponse,
   ReservaResumoResponse,
   ReservaResponse,
   SolicitarReservaRequest,
@@ -22,14 +21,10 @@ export const reservasApi = {
     addStoredReservationId(reserva.id);
     return reserva;
   },
-  listar: (canceladas = false, data?: string, page = 0, size = 15) => {
-    const params = new URLSearchParams({
-      canceladas: String(canceladas),
-      page: String(page),
-      size: String(size),
-    });
+  listar: (canceladas = false, data?: string) => {
+    const params = new URLSearchParams({ canceladas: String(canceladas) });
     if (data) params.set('data', data);
-    return api.get<PageResponse<ReservaResumoResponse>>(`/reservas?${params.toString()}`);
+    return api.get<ReservaResumoResponse[]>(`/reservas?${params.toString()}`);
   },
   obter: (id: string) => api.get<ReservaResponse>(`/reservas/${id}`),
   confirmar: (id: string) => api.patch<ReservaResponse>(`/reservas/${id}/confirmar`),

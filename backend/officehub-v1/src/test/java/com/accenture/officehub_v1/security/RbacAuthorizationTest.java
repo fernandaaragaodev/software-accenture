@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -174,9 +173,7 @@ class RbacAuthorizationTest {
   @Test
   @WithMockUser(authorities = Roles.ADMIN_SALA)
   void listarReservas_adminSala_permitido() throws Exception {
-    when(reservaService.listarReservas(any(), eq(false), anyInt(), anyInt(), any(), any()))
-        .thenReturn(new com.accenture.officehub_v1.dto.response.PageResponse<>(
-            List.of(), 0, 15, 0, 0, true, true));
+    when(reservaService.listarReservas(any(), eq(false), any(), any())).thenReturn(List.of());
 
     mockMvc.perform(get("/api/v1/reservas")
             .param("data", "2026-06-04"))

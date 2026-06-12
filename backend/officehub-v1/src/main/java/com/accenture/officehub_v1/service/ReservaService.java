@@ -5,7 +5,6 @@ import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.PessoaReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SugestaoOutraAlocacaoRequest;
-import com.accenture.officehub_v1.dto.response.PageResponse;
 import com.accenture.officehub_v1.dto.response.ReservaPosicaoAlocadaResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
@@ -32,9 +31,6 @@ import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
 import com.accenture.officehub_v1.security.Roles;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -204,22 +200,11 @@ public class ReservaService {
         return toResponse(reserva);
     }
 
-    public static final int TAMANHO_PAGINA_PADRAO = 15;
-
-    public PageResponse<ReservaResumoResponse> listarReservas(
+    public List<ReservaResumoResponse> listarReservas(
             LocalDate data,
             boolean canceladas,
-            int page,
-            int size,
             UUID usuarioId,
             Collection<String> perfis) {
-        int pagina = Math.max(0, page);
-        int tamanho = size > 0 ? size : TAMANHO_PAGINA_PADRAO;
-
-        if (perfis.contains(Roles.ADMIN_SALA)) {
-            return listarReservasAdmin(data, canceladas, pagina, tamanho);
-        }
-
         List<Reserva> reservas;
         if (canceladas) {
             reservas = data != null
@@ -231,44 +216,13 @@ public class ReservaService {
                     : reservaRepository.findAtivas(STATUS_ATIVAS_LISTAGEM);
         }
 
-        List<ReservaResumoResponse> filtradas = reservas.stream()
-                .filter(r -> reservaAutorizacaoService.podeGerenciarReserva(usuarioId, perfis, r))
-                .map(ReservaResumoResponse::from)
-                .toList();
-
-        return PageResponse.fromList(filtradas, pagina, tamanho);
-    }
-
-    private PageResponse<ReservaResumoResponse> listarReservasAdmin(
-            LocalDate data,
-            boolean canceladas,
-            int page,
-            int size) {
-        Pageable pageable = canceladas
-                ? PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "canceladoEm"))
-                : PageRequest.of(
-                        page,
-                        size,
-                        Sort.by(Sort.Order.desc("dataReserva"), Sort.Order.asc("horaInicio")));
-
-        if (canceladas) {
-            return data != null
-                    ? PageResponse.from(
-                            reservaRepository.findCanceladasPorDataPaginado(
-                                    StatusReserva.CANCELADA, data, pageable),
-                            ReservaResumoResponse::from)
-                    : PageResponse.from(
-                            reservaRepository.findCanceladasPaginado(StatusReserva.CANCELADA, pageable),
-                            ReservaResumoResponse::from);
+        if (!perfis.contains(Roles.ADMIN_SALA)) {
+            reservas = reservas.stream()
+                    .filter(r -> reservaAutorizacaoService.podeGerenciarReserva(usuarioId, perfis, r))
+                    .toList();
         }
 
-        return data != null
-                ? PageResponse.from(
-                        reservaRepository.findAtivasPorDataPaginado(STATUS_ATIVAS_LISTAGEM, data, pageable),
-                        ReservaResumoResponse::from)
-                : PageResponse.from(
-                        reservaRepository.findAtivasPaginado(STATUS_ATIVAS_LISTAGEM, pageable),
-                        ReservaResumoResponse::from);
+        return reservas.stream().map(ReservaResumoResponse::from).toList();
     }
 
     public List<Posicao> buscarPosicoesLivres(UUID salaId, LocalDate data, java.time.LocalTime horaInicio, java.time.LocalTime horaFim) {

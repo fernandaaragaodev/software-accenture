@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { equipesApi } from '../../api/equipes';
-import { Alert, EmptyState, LoadingState, PageHeader } from '../../components/ui';
+import { Alert, EmptyState, PageHeader } from '../../components/ui';
 import type { EquipeResumoResponse } from '../../types';
 
 export function MinhasEquipesPage() {
@@ -19,7 +19,7 @@ export function MinhasEquipesPage() {
   }, []);
 
   if (loading) {
-    return <LoadingState message="Carregando equipes..." />;
+    return <div className="page-center"><div className="spinner" /></div>;
   }
 
   return (
@@ -36,7 +36,7 @@ export function MinhasEquipesPage() {
           description="Você ainda não foi adicionado a nenhuma equipe."
         />
       ) : (
-        <div className="cards-grid">
+        <div className="card-grid">
           {equipes.map((equipe) => (
             <Link key={equipe.id} to={`/minhas-equipes/${equipe.id}`} className="card card-link">
               <h3>{equipe.nome}</h3>

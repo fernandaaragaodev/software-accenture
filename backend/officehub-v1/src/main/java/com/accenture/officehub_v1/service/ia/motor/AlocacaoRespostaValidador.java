@@ -20,17 +20,7 @@ import java.util.stream.Collectors;
 @Component
 public class AlocacaoRespostaValidador {
 
-    public static final String ERRO_COMBINACAO_JA_SUGERIDA =
-            "A IA retornou uma combinação já sugerida anteriormente.";
-
     public Optional<String> validar(AlocacaoAgenteEntradaDto entrada, AlocacaoAgenteSaidaDto saida) {
-        return validar(entrada, saida, false);
-    }
-
-    public Optional<String> validar(
-            AlocacaoAgenteEntradaDto entrada,
-            AlocacaoAgenteSaidaDto saida,
-            boolean ignorarCombinacoesExcluidas) {
         if (saida == null) {
             return Optional.of("Resposta da IA ausente.");
         }
@@ -98,56 +88,7 @@ public class AlocacaoRespostaValidador {
             }
         }
 
-        if (!ignorarCombinacoesExcluidas
-                && combinacaoExcluida(entrada.combinacoesExcluidas(), posicoesUsadas)) {
-            return Optional.of(ERRO_COMBINACAO_JA_SUGERIDA);
-        }
-
         return Optional.empty();
-    }
-
-    public boolean alternativasEsgotadas(AlocacaoAgenteEntradaDto entrada) {
-        if (entrada.combinacoesExcluidas() == null || entrada.combinacoesExcluidas().isEmpty()) {
-            return false;
-        }
-
-        if (entrada.pessoas().size() != 1) {
-            return false;
-        }
-
-        PessoaAlocacaoEntradaDto pessoa = entrada.pessoas().get(0);
-        long posicoesCompativeis = entrada.posicoesLivres().stream()
-                .filter(posicao -> posicaoCompativel(posicao, pessoa))
-                .count();
-
-        return posicoesCompativeis > 0
-                && entrada.combinacoesExcluidas().size() >= posicoesCompativeis;
-    }
-
-    public boolean combinacaoExcluida(AlocacaoAgenteEntradaDto entrada, AlocacaoAgenteSaidaDto saida) {
-        if (!saida.sucesso() || saida.alocacoes() == null) {
-            return false;
-        }
-
-        Set<UUID> posicoesUsadas = saida.alocacoes().stream()
-                .map(PosicaoAlocadaSaidaDto::posicaoId)
-                .collect(Collectors.toSet());
-
-        return combinacaoExcluida(entrada.combinacoesExcluidas(), posicoesUsadas);
-    }
-
-    private boolean combinacaoExcluida(List<List<UUID>> combinacoesExcluidas, Set<UUID> posicoesUsadas) {
-        if (combinacoesExcluidas == null || combinacoesExcluidas.isEmpty()) {
-            return false;
-        }
-
-        for (List<UUID> excluida : combinacoesExcluidas) {
-            if (excluida != null && new HashSet<>(excluida).equals(posicoesUsadas)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private boolean posicaoCompativel(PosicaoLivreEntradaDto posicao, PessoaAlocacaoEntradaDto pessoa) {

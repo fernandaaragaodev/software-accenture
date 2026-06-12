@@ -5,7 +5,6 @@ import com.accenture.officehub_v1.dto.request.CancelarReservaRequest;
 import com.accenture.officehub_v1.dto.request.RejeitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SolicitarReservaRequest;
 import com.accenture.officehub_v1.dto.request.SugestaoOutraAlocacaoRequest;
-import com.accenture.officehub_v1.dto.response.PageResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResumoResponse;
 import com.accenture.officehub_v1.dto.response.ReservaResponse;
 import com.accenture.officehub_v1.dto.response.SugestaoAlocacaoResponse;
@@ -85,16 +84,12 @@ public class ReservaController {
     }
 
     @GetMapping
-    public ResponseEntity<PageResponse<ReservaResumoResponse>> listar(
+    public ResponseEntity<List<ReservaResumoResponse>> listar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
-            @RequestParam(defaultValue = "false") boolean canceladas,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "15") int size) {
+            @RequestParam(defaultValue = "false") boolean canceladas) {
         return ResponseEntity.ok(reservaService.listarReservas(
                 data,
                 canceladas,
-                page,
-                size,
                 SecurityUtils.getUsuarioIdAtual(),
                 SecurityUtils.getPerfisAtuais()));
     }

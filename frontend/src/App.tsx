@@ -19,12 +19,15 @@ import { ReservaDetailPage } from './pages/reservas/ReservaDetailPage';
 import { AdminReservasPage } from './pages/admin/AdminReservasPage';
 import { GestaoReservasPage, ReservasListPage } from './pages/reservas/ReservasListPage';
 import { SalaDetailPage } from './pages/salas/SalaDetailPage';
-import { SalaFormPage, SalasListPage } from './pages/salas/SalasPages';
+import { SalaEditPage } from './pages/salas/SalaEditPage';
+import { SalasListPage, SalaWizardPage } from './pages/salas/SalasPages';
+import { ToastProvider } from './components/Toast';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
@@ -34,7 +37,8 @@ export default function App() {
 
               <Route element={<ProtectedRoute roles={['ADMIN_SALA']} />}>
                 <Route path="salas" element={<SalasListPage />} />
-                <Route path="salas/nova" element={<SalaFormPage />} />
+                <Route path="salas/nova" element={<SalaWizardPage />} />
+                <Route path="salas/:id/editar" element={<SalaEditPage />} />
                 <Route path="salas/:id" element={<SalaDetailPage />} />
                 <Route path="layouts" element={<LayoutsPage />} />
                 <Route path="posicoes" element={<PosicoesPage />} />
@@ -44,6 +48,7 @@ export default function App() {
                 <Route path="ia-execucoes" element={<IaExecucoesPage />} />
                 <Route path="admin/reservas" element={<AdminReservasPage />} />
                 <Route path="admin/reservas/:id" element={<ReservaDetailPage />} />
+                <Route path="disponibilidade" element={<DisponibilidadePage />} />
               </Route>
 
               <Route element={<ProtectedRoute roles={['USUARIO_FINAL']} />}>
@@ -61,15 +66,6 @@ export default function App() {
                 <Route path="reservas" element={<ReservasListPage />} />
                 <Route path="reservas/nova" element={<NovaReservaPage />} />
                 <Route path="reservas/:id" element={<ReservaDetailPage />} />
-              </Route>
-
-              <Route
-                element={
-                  <ProtectedRoute
-                    roles={['ADMIN_SALA', 'USUARIO_FINAL', 'GESTOR_RESERVAS', 'INTEGRADOR']}
-                  />
-                }
-              >
                 <Route path="disponibilidade" element={<DisponibilidadePage />} />
               </Route>
 
@@ -81,6 +77,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

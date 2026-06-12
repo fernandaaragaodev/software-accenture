@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ApiException } from '../../api/client';
 import { regrasDisponibilidadeApi } from '../../api/regras-disponibilidade';
 import { salasApi } from '../../api/salas';
-import { Alert, ConfirmDialog, EmptyState, PageHeader } from '../../components/ui';
+import { Alert, EmptyState, PageHeader } from '../../components/ui';
 import type {
   HorarioDisponibilidade,
   RegraDisponibilidadeResponse,
@@ -56,7 +56,6 @@ export function RegrasDisponibilidadePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [excluirId, setExcluirId] = useState<string | null>(null);
 
   function carregar() {
     Promise.all([regrasDisponibilidadeApi.listar(), salasApi.listar()])
@@ -130,17 +129,15 @@ export function RegrasDisponibilidadePage() {
     }
   }
 
-  async function handleExcluir() {
-    if (!excluirId) return;
+  async function handleExcluir(id: string) {
+    if (!confirm('Deseja excluir esta regra? Ela não pode estar atribuída a nenhuma sala.')) return;
     setError('');
     try {
-      await regrasDisponibilidadeApi.excluir(excluirId);
+      await regrasDisponibilidadeApi.excluir(id);
       setSuccess('Regra excluída');
       carregar();
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao excluir regra');
-    } finally {
-      setExcluirId(null);
     }
   }
 
@@ -344,7 +341,7 @@ export function RegrasDisponibilidadePage() {
                         <button
                           type="button"
                           className="btn btn-sm btn-danger"
-                          onClick={() => setExcluirId(regra.id)}
+                          onClick={() => handleExcluir(regra.id)}
                         >
                           Excluir
                         </button>
@@ -357,16 +354,6 @@ export function RegrasDisponibilidadePage() {
           </div>
         )}
       </div>
-
-      <ConfirmDialog
-        open={!!excluirId}
-        title="Excluir regra"
-        message="Deseja excluir esta regra? Ela não pode estar atribuída a nenhuma sala."
-        confirmLabel="Excluir"
-        variant="danger"
-        onConfirm={handleExcluir}
-        onCancel={() => setExcluirId(null)}
-      />
     </div>
   );
 }

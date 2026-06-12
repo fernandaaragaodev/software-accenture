@@ -189,68 +189,6 @@ class MotorAlocacaoEspacialTest {
     }
 
     @Test
-    void deveSugerirPosicaoDiferenteQuandoCombinacaoAnteriorEstaExcluida() {
-        UUID pessoaId = UUID.randomUUID();
-        PessoaAlocacaoEntradaDto pessoa = new PessoaAlocacaoEntradaDto(
-                pessoaId,
-                "João",
-                TipoPessoaAlocacao.FUNCIONARIO,
-                EQUIPE_ID,
-                List.of("Monitor"));
-
-        PosicaoLivreEntradaDto pos1 = posicaoComEquipamento(
-                UUID.fromString("10000000-0000-0000-0000-000000000001"),
-                0,
-                0,
-                "PADRAO",
-                List.of("Monitor"));
-        PosicaoLivreEntradaDto pos2 = posicaoComEquipamento(
-                UUID.fromString("10000000-0000-0000-0000-000000000002"),
-                1,
-                0,
-                "PADRAO",
-                List.of("Monitor"));
-        PosicaoLivreEntradaDto pos3 = posicaoComEquipamento(
-                UUID.fromString("10000000-0000-0000-0000-000000000003"),
-                2,
-                0,
-                "PADRAO",
-                List.of("Monitor"));
-        PosicaoLivreEntradaDto pos4 = posicaoComEquipamento(
-                UUID.fromString("10000000-0000-0000-0000-000000000004"),
-                3,
-                0,
-                "PADRAO",
-                List.of("Monitor"));
-
-        AlocacaoAgenteEntradaDto primeiraSugestao = entrada(
-                List.of(pessoa),
-                List.of(pos1, pos2, pos3, pos4),
-                CriterioProximidade.PREFERENCIAL);
-
-        AlocacaoAgenteSaidaDto primeira = motor.executar(primeiraSugestao);
-        assertThat(primeira.sucesso()).isTrue();
-        assertThat(primeira.alocacoes().get(0).posicaoId()).isEqualTo(pos1.id());
-
-        AlocacaoAgenteEntradaDto segundaSugestao = new AlocacaoAgenteEntradaDto(
-                primeiraSugestao.salaId(),
-                primeiraSugestao.data(),
-                primeiraSugestao.criterio(),
-                primeiraSugestao.criterioProximidade(),
-                primeiraSugestao.raioProximidade(),
-                primeiraSugestao.capacidadeMaxima(),
-                primeiraSugestao.coordEntradaX(),
-                primeiraSugestao.coordEntradaY(),
-                primeiraSugestao.pessoas(),
-                primeiraSugestao.posicoesLivres(),
-                List.of(List.of(pos1.id())));
-
-        AlocacaoAgenteSaidaDto segunda = motor.executar(segundaSugestao);
-        assertThat(segunda.sucesso()).isTrue();
-        assertThat(segunda.alocacoes().get(0).posicaoId()).isEqualTo(pos2.id());
-    }
-
-    @Test
     void deveAplicarPenalidadePorQuebraDePreferencia() {
         UUID pessoaId = UUID.randomUUID();
         PessoaAlocacaoEntradaDto pessoa = new PessoaAlocacaoEntradaDto(
@@ -302,19 +240,5 @@ class MotorAlocacaoEspacialTest {
 
     private PosicaoLivreEntradaDto posicao(UUID id, double x, double y, String tipo) {
         return new PosicaoLivreEntradaDto(id, BigDecimal.valueOf(x), BigDecimal.valueOf(y), tipo);
-    }
-
-    private PosicaoLivreEntradaDto posicaoComEquipamento(
-            UUID id,
-            double x,
-            double y,
-            String tipo,
-            List<String> equipamentos) {
-        return new PosicaoLivreEntradaDto(
-                id,
-                BigDecimal.valueOf(x),
-                BigDecimal.valueOf(y),
-                tipo,
-                equipamentos);
     }
 }

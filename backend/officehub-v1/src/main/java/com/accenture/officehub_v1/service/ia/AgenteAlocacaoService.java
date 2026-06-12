@@ -12,13 +12,9 @@ import com.accenture.officehub_v1.exception.RegraNegocioException;
 import com.accenture.officehub_v1.repository.AgenteExecucaoRepository;
 import com.accenture.officehub_v1.service.alocacao.ItemAlocacao;
 import com.accenture.officehub_v1.service.alocacao.ResultadoAlocacao;
-import com.accenture.officehub_v1.service.ia.motor.AlocacaoRespostaValidador;
 import com.accenture.officehub_v1.service.ia.motor.MotorAlocacao;
 import com.accenture.officehub_v1.service.ia.motor.MotorAlocacaoFactory;
-import com.accenture.officehub_v1.service.ia.motor.MotorAlocacaoOpenRouter;
-import com.accenture.officehub_v1.service.ia.motor.OpcoesChamadaOpenRouter;
 import com.accenture.officehub_v1.service.ia.motor.OpenRouterIndisponivelException;
-import com.accenture.officehub_v1.service.ia.motor.ResultadoChamadaOpenRouter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -39,11 +35,8 @@ import java.util.stream.Collectors;
 public class AgenteAlocacaoService {
 
     private static final Logger log = LoggerFactory.getLogger(AgenteAlocacaoService.class);
-    private static final int MAX_TENTATIVAS_NOVA_SUGESTAO = 5;
-    private static final double TEMPERATURA_BASE_NOVA_SUGESTAO = 0.35;
 
     private final MotorAlocacaoFactory motorAlocacaoFactory;
-    private final AlocacaoRespostaValidador respostaValidador;
     private final AlocacaoEntradaBuilder alocacaoEntradaBuilder;
     private final AgenteExecucaoService agenteExecucaoService;
     private final AgenteExecucaoRepository agenteExecucaoRepository;
@@ -77,9 +70,7 @@ public class AgenteAlocacaoService {
                 posicoesLivres,
                 combinacoesExcluidas);
 
-        ExecucaoMotorResultado execucao = combinacoesExcluidas != null && !combinacoesExcluidas.isEmpty()
-                ? executarNovaSugestaoOpenRouter(entrada, pessoas, posicoesLivres)
-                : executarComFallback(entrada, pessoas, posicoesLivres);
+        ExecucaoMotorResultado execucao = executarComFallback(entrada, pessoas, posicoesLivres);
         return new ResultadoExecucaoAgente(execucao.resultadoAlocacao(), execucao.execucaoId());
     }
 
@@ -105,108 +96,6 @@ public class AgenteAlocacaoService {
 
     public void vincularReferenciaReserva(UUID execucaoId, UUID reservaId) {
         agenteExecucaoService.vincularReferencia(execucaoId, reservaId);
-    }
-
-    private ExecucaoMotorResultado executarNovaSugestaoOpenRouter(
-            AlocacaoAgenteEntradaDto entrada,
-            List<PessoaReservaRequest> pessoas,
-            List<Posicao> posicoesLivres) {
-
-        MotorAlocacaoOpenRouter openRouter = motorAlocacaoFactory.obterMotorOpenRouter();
-        boolean alternativasEsgotadas = respostaValidador.alternativasEsgotadas(entrada);
-        String ultimoErro = "A IA não conseguiu sugerir uma combinação diferente das já apresentadas.";
-
-        if (alternativasEsgotadas) {
-            return finalizarNovaSugestaoOpenRouter(
-                    entrada,
-                    pessoas,
-                    posicoesLivres,
-                    openRouter.chamar(
-                            entrada,
-                            new OpcoesChamadaOpenRouter(
-                                    TEMPERATURA_BASE_NOVA_SUGESTAO,
-                                    0,
-                                    true,
-                                    true,
-                                    true)));
-        }
-
-        for (int tentativa = 0; tentativa < MAX_TENTATIVAS_NOVA_SUGESTAO; tentativa++) {
-            OpcoesChamadaOpenRouter opcoes = new OpcoesChamadaOpenRouter(
-                    TEMPERATURA_BASE_NOVA_SUGESTAO + tentativa * 0.15,
-                    tentativa,
-                    true,
-                    false,
-                    false);
-
-            ResultadoChamadaOpenRouter resultado = openRouter.chamar(entrada, opcoes);
-
-            if (resultado.erroValidacao().isEmpty()) {
-                return finalizarNovaSugestaoOpenRouter(entrada, pessoas, posicoesLivres, resultado);
-            }
-
-            ultimoErro = resultado.erroValidacao().orElse(ultimoErro);
-            boolean repetiuCombinacao = AlocacaoRespostaValidador.ERRO_COMBINACAO_JA_SUGERIDA.equals(ultimoErro)
-                    || respostaValidador.combinacaoExcluida(entrada, resultado.saida());
-
-            if (!repetiuCombinacao) {
-                log.warn("Nova sugestão OpenRouter rejeitada: {}", ultimoErro);
-                break;
-            }
-
-            log.info(
-                    "Nova sugestão OpenRouter repetiu combinação excluída (tentativa {}/{}). Reenviando à IA.",
-                    tentativa + 1,
-                    MAX_TENTATIVAS_NOVA_SUGESTAO);
-        }
-
-        AlocacaoAgenteSaidaDto saidaFalha = AlocacaoAgenteSaidaDto.falha(ultimoErro);
-        var execucaoFalha = registrarExecucao(
-                ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
-                entrada,
-                saidaFalha,
-                0,
-                StatusAgente.FALHA,
-                ultimoErro);
-
-        return new ExecucaoMotorResultado(
-                converterParaResultado(saidaFalha, pessoas, posicoesLivres),
-                execucaoFalha.getId());
-    }
-
-    private ExecucaoMotorResultado finalizarNovaSugestaoOpenRouter(
-            AlocacaoAgenteEntradaDto entrada,
-            List<PessoaReservaRequest> pessoas,
-            List<Posicao> posicoesLivres,
-            ResultadoChamadaOpenRouter resultado) {
-
-        if (resultado.erroValidacao().isPresent()) {
-            String erro = resultado.erroValidacao().get();
-            AlocacaoAgenteSaidaDto saidaFalha = AlocacaoAgenteSaidaDto.falha(erro);
-            var execucaoFalha = registrarExecucao(
-                    ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
-                    entrada,
-                    saidaFalha,
-                    resultado.tempoMs(),
-                    StatusAgente.FALHA,
-                    erro);
-
-            return new ExecucaoMotorResultado(
-                    converterParaResultado(saidaFalha, pessoas, posicoesLivres),
-                    execucaoFalha.getId());
-        }
-
-        var execucao = registrarExecucao(
-                ConstantesAgenteIa.VERSAO_OPENROUTER_GEMINI_FLASH_V1,
-                entrada,
-                resultado.saida(),
-                resultado.tempoMs(),
-                StatusAgente.SUCESSO,
-                null);
-
-        return new ExecucaoMotorResultado(
-                converterParaResultado(resultado.saida(), pessoas, posicoesLivres),
-                execucao.getId());
     }
 
     private ExecucaoMotorResultado executarComFallback(
