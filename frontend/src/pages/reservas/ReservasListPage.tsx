@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { reservasApi } from '../../api/reservas';
-import { Alert, EmptyState, PageHeader, StatusBadge } from '../../components/ui';
+import { Alert, EmptyState, LoadingState, PageHeader, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import type { ReservaResumoResponse } from '../../types';
 
@@ -22,8 +22,8 @@ export function ReservasListPage() {
     setLoading(true);
     setError('');
     try {
-      const lista = await reservasApi.listar(aba === 'canceladas');
-      setReservas(lista);
+      const resposta = await reservasApi.listar(aba === 'canceladas', undefined, 0, 100);
+      setReservas(resposta.content);
     } catch (err) {
       setError(err instanceof ApiException ? err.message : 'Erro ao carregar reservas');
       setReservas([]);
@@ -37,7 +37,7 @@ export function ReservasListPage() {
   }, [carregar]);
 
   if (isAdmin) {
-    return null;
+    return <Navigate to="/admin/reservas" replace />;
   }
 
   return (
@@ -74,7 +74,7 @@ export function ReservasListPage() {
       <Alert message={error} />
 
       {loading ? (
-        <div className="page-center"><div className="spinner" /></div>
+        <LoadingState message="Carregando reservas..." />
       ) : reservas.length === 0 ? (
         <EmptyState
           title={aba === 'canceladas' ? 'Nenhuma reserva cancelada' : 'Nenhuma reserva'}
@@ -96,7 +96,7 @@ export function ReservasListPage() {
             </thead>
             <tbody>
               {reservas.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className={r.status === 'PENDENTE' ? 'highlight-pending' : undefined}>
                   <td>{r.salaNome}</td>
                   <td>{r.dataReserva}</td>
                   <td>
@@ -120,39 +120,132 @@ export function ReservasListPage() {
 }
 
 export function GestaoReservasPage() {
-  const [reservaId, setReservaId] = useState('');
+  const [aba, setAba] = useState<'pendentes' | 'todas'>('pendentes');
+  const [busca, setBusca] = useState('');
+  const [reservas, setReservas] = useState<ReservaResumoResponse[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  function handleBuscar(e: React.FormEvent) {
-    e.preventDefault();
-    if (!reservaId.trim()) {
-      setError('Informe o ID da reserva');
-      return;
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const resposta = await reservasApi.listar(false, undefined, 0, 100);
+      setReservas(resposta.content);
+    } catch (err) {
+      setError(err instanceof ApiException ? err.message : 'Erro ao carregar reservas');
+      setReservas([]);
+    } finally {
+      setLoading(false);
     }
-    window.location.href = `/reservas/${reservaId.trim()}`;
-  }
+  }, []);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  const reservasFiltradas = useMemo(() => {
+    let lista = reservas;
+    if (aba === 'pendentes') {
+      lista = lista.filter((r) => r.status === 'PENDENTE');
+    }
+    if (busca.trim()) {
+      const termo = busca.trim().toLowerCase();
+      lista = lista.filter(
+        (r) =>
+          r.salaNome.toLowerCase().includes(termo) ||
+          r.dataReserva.includes(termo) ||
+          r.id.toLowerCase().includes(termo),
+      );
+    }
+    return lista;
+  }, [reservas, aba, busca]);
 
   return (
     <div>
       <PageHeader
         title="Gestão de Reservas"
-        subtitle="Busque uma reserva pelo ID para confirmar, rejeitar ou cancelar"
+        subtitle="Visualize e gerencie reservas pendentes de confirmação"
       />
-      <Alert message={error} />
-      <div className="card form-card">
-        <form onSubmit={handleBuscar} className="form inline-form">
+
+      <div className="card form-card mb-lg">
+        <div className="search-bar">
           <label>
-            ID da reserva
+            Buscar por sala, data ou ID
             <input
-              value={reservaId}
-              onChange={(e) => setReservaId(e.target.value)}
-              placeholder="UUID da reserva"
-              required
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Digite para filtrar..."
             />
           </label>
-          <button type="submit" className="btn btn-primary">Buscar</button>
-        </form>
+        </div>
+        <div className="tabs mt-md">
+          <button
+            type="button"
+            className={`tab ${aba === 'pendentes' ? 'tab-active' : ''}`}
+            onClick={() => setAba('pendentes')}
+          >
+            Pendentes
+          </button>
+          <button
+            type="button"
+            className={`tab ${aba === 'todas' ? 'tab-active' : ''}`}
+            onClick={() => setAba('todas')}
+          >
+            Todas ativas
+          </button>
+        </div>
       </div>
+
+      <Alert message={error} />
+
+      {loading ? (
+        <LoadingState message="Carregando reservas..." />
+      ) : reservasFiltradas.length === 0 ? (
+        <EmptyState
+          title={aba === 'pendentes' ? 'Nenhuma reserva pendente' : 'Nenhuma reserva encontrada'}
+          description={
+            busca
+              ? 'Tente ajustar os termos da busca.'
+              : aba === 'pendentes'
+                ? 'Não há reservas aguardando confirmação no momento.'
+                : 'Não há reservas ativas no sistema.'
+          }
+        />
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sala</th>
+                <th>Data</th>
+                <th>Horário</th>
+                <th>Pessoas</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reservasFiltradas.map((r) => (
+                <tr key={r.id} className={r.status === 'PENDENTE' ? 'highlight-pending' : undefined}>
+                  <td>{r.salaNome}</td>
+                  <td>{r.dataReserva}</td>
+                  <td>
+                    {formatarHorario(r.horaInicio)} – {formatarHorario(r.horaFim)}
+                  </td>
+                  <td>{r.quantidadePessoas}</td>
+                  <td><StatusBadge status={r.status} /></td>
+                  <td>
+                    <Link to={`/reservas/${r.id}`} className="btn btn-sm btn-primary">
+                      Gerenciar
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

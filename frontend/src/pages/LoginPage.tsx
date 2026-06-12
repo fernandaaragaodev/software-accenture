@@ -55,6 +55,7 @@ export function LoginPage() {
               required
               autoComplete="username"
               placeholder="seu@email.com"
+              disabled={loading}
             />
           </label>
           <label>
@@ -66,10 +67,18 @@ export function LoginPage() {
               required
               autoComplete="current-password"
               placeholder="••••••••"
+              disabled={loading}
             />
           </label>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? (
+              <>
+                <span className="btn-spinner" aria-hidden="true" />
+                Entrando...
+              </>
+            ) : (
+              'Entrar'
+            )}
           </button>
         </form>
       </div>

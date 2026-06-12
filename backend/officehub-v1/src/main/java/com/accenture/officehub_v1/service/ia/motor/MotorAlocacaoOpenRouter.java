@@ -33,21 +33,37 @@ public class MotorAlocacaoOpenRouter implements MotorAlocacao {
 
     @Override
     public AlocacaoAgenteSaidaDto executar(AlocacaoAgenteEntradaDto entrada) {
+        ResultadoChamadaOpenRouter resultado = chamar(entrada, OpcoesChamadaOpenRouter.padrao());
+        if (resultado.erroValidacao().isPresent()) {
+            log.warn("Resposta OpenRouter rejeitada na validação: {}", resultado.erroValidacao().get());
+            return AlocacaoAgenteSaidaDto.falha(resultado.erroValidacao().get());
+        }
+        return resultado.saida();
+    }
+
+    public ResultadoChamadaOpenRouter chamar(
+            AlocacaoAgenteEntradaDto entrada,
+            OpcoesChamadaOpenRouter opcoes) {
         validarConfiguracao();
 
         try {
+            long inicio = System.nanoTime();
             String payloadJson = objectMapper.writeValueAsString(entrada);
-            OpenRouterRequestDto request = montarRequest(payloadJson);
+            OpenRouterRequestDto request = montarRequest(payloadJson, opcoes);
             OpenRouterResponseDto response = chamarApi(request);
             AlocacaoAgenteSaidaDto saida = parsearResposta(response);
+            int tempoMs = (int) ((System.nanoTime() - inicio) / 1_000_000L);
 
-            Optional<String> erroValidacao = respostaValidador.validar(entrada, saida);
+            Optional<String> erroValidacao = respostaValidador.validar(
+                    entrada,
+                    saida,
+                    opcoes.ignorarCombinacoesExcluidas());
+
             if (erroValidacao.isPresent()) {
-                log.warn("Resposta OpenRouter rejeitada na validação: {}", erroValidacao.get());
-                return AlocacaoAgenteSaidaDto.falha(erroValidacao.get());
+                return new ResultadoChamadaOpenRouter(saida, erroValidacao, tempoMs);
             }
 
-            return enriquecerComTokens(saida, response);
+            return new ResultadoChamadaOpenRouter(enriquecerComTokens(saida, response), Optional.empty(), tempoMs);
         } catch (RestClientException ex) {
             log.error("Falha na comunicação com OpenRouter: {}", ex.getMessage());
             throw new OpenRouterIndisponivelException("OpenRouter indisponível: " + ex.getMessage(), ex);
@@ -75,13 +91,19 @@ public class MotorAlocacaoOpenRouter implements MotorAlocacao {
         return OpenRouterRespostaParser.parsear(objectMapper, content);
     }
 
-    private OpenRouterRequestDto montarRequest(String payloadJson) {
+    private OpenRouterRequestDto montarRequest(String payloadJson, OpcoesChamadaOpenRouter opcoes) {
         return new OpenRouterRequestDto(
                 iaProperties.openrouter().model(),
                 List.of(
                         new OpenRouterMessageDto("system", OpenRouterAlocacaoPrompt.SYSTEM_PROMPT),
-                        new OpenRouterMessageDto("user", OpenRouterAlocacaoPrompt.montarMensagemUsuario(payloadJson))),
-                0.1,
+                        new OpenRouterMessageDto(
+                                "user",
+                                OpenRouterAlocacaoPrompt.montarMensagemUsuario(
+                                        payloadJson,
+                                        opcoes.novaSugestao(),
+                                        opcoes.tentativa(),
+                                        opcoes.repeticaoPermitida()))),
+                opcoes.temperatura(),
                 iaProperties.openrouter().maxTokens(),
                 Map.of("type", "json_object"));
     }

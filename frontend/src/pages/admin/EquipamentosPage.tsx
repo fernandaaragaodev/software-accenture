@@ -1,6 +1,5 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { posicoesApi } from '../../api/posicoes';
 import { salasApi } from '../../api/salas';
@@ -14,10 +13,9 @@ import type {
 } from '../../types';
 
 export function EquipamentosPage() {
-  const [searchParams] = useSearchParams();
   const [tipos, setTipos] = useState<TipoEquipamentoResponse[]>([]);
   const [salas, setSalas] = useState<SalaResponse[]>([]);
-  const [salaId, setSalaId] = useState(searchParams.get('salaId') ?? '');
+  const [salaId, setSalaId] = useState('');
   const [posicoes, setPosicoes] = useState<PosicaoResponse[]>([]);
   const [posicaoId, setPosicaoId] = useState('');
   const [equipamentosPosicao, setEquipamentosPosicao] = useState<PosicaoEquipamentoResponse[]>([]);
@@ -40,14 +38,9 @@ export function EquipamentosPage() {
     tiposEquipamentoApi.listar().then(setTipos).catch(() => setTipos([]));
     salasApi.listar().then((data) => {
       setSalas(data);
-      const paramSalaId = searchParams.get('salaId');
-      if (paramSalaId && data.some((s) => s.id === paramSalaId)) {
-        setSalaId(paramSalaId);
-      } else if (data.length > 0 && !salaId) {
-        setSalaId(data[0].id);
-      }
+      if (data.length > 0) setSalaId(data[0].id);
     }).catch(() => setSalas([]));
-  }, [success, searchParams]);
+  }, [success]);
 
   useEffect(() => {
     if (!salaId) return;
