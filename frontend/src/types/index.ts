@@ -33,6 +33,20 @@ export interface UsuarioResponse {
   email: string;
   ativo: boolean;
   perfis: Role[];
+  cargo?: CargoResponse | null;
+  especialidades: EspecialidadeResponse[];
+}
+
+export interface CargoResponse {
+  id: string;
+  nome: string;
+  descricao?: string;
+}
+
+export interface EspecialidadeResponse {
+  id: string;
+  nome: string;
+  descricao?: string;
 }
 
 export interface CriarUsuarioRequest {
@@ -40,6 +54,18 @@ export interface CriarUsuarioRequest {
   email: string;
   senha: string;
   perfis?: Role[];
+  cargoId?: string;
+  especialidadeIds?: string[];
+}
+
+export interface AtualizarUsuarioRequest {
+  email: string;
+  cargoId?: string | null;
+  especialidadeIds?: string[];
+}
+
+export interface ValidacaoSenhaRequest {
+  senha: string;
 }
 
 export interface SalaResponse {
@@ -148,6 +174,8 @@ export interface UsuarioResumo {
   id: string;
   nome: string;
   email: string;
+  cargoNome?: string | null;
+  especialidades: EspecialidadeResponse[];
 }
 
 export interface EquipeResponse {

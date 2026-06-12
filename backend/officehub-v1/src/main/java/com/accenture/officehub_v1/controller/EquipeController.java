@@ -2,6 +2,7 @@ package com.accenture.officehub_v1.controller;
 
 import com.accenture.officehub_v1.dto.request.AdicionarMembroEquipeRequest;
 import com.accenture.officehub_v1.dto.request.CriarEquipeRequest;
+import com.accenture.officehub_v1.dto.request.ValidacaoSenhaRequest;
 import com.accenture.officehub_v1.dto.response.EquipeResumoResponse;
 import com.accenture.officehub_v1.dto.response.EquipeResponse;
 import com.accenture.officehub_v1.security.SecurityUtils;
@@ -71,18 +72,23 @@ public class EquipeController {
     @DeleteMapping("/{id}/membros/{usuarioId}")
     public ResponseEntity<EquipeResponse> removerMembro(
             @PathVariable UUID id,
-            @PathVariable UUID usuarioId) {
+            @PathVariable UUID usuarioId,
+            @Valid @RequestBody ValidacaoSenhaRequest request) {
         return ResponseEntity.ok(equipeService.removerMembro(
                 id,
                 usuarioId,
+                request,
                 SecurityUtils.getUsuarioIdAtual(),
                 SecurityUtils.getPerfisAtuais()));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> desmembrar(@PathVariable UUID id) {
-        equipeService.desmembrar(
+    public ResponseEntity<Void> desfazer(
+            @PathVariable UUID id,
+            @Valid @RequestBody ValidacaoSenhaRequest request) {
+        equipeService.desfazer(
                 id,
+                request,
                 SecurityUtils.getUsuarioIdAtual(),
                 SecurityUtils.getPerfisAtuais());
         return ResponseEntity.noContent().build();

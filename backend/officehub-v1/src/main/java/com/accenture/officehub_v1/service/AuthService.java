@@ -37,6 +37,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final AuditService auditService;
+    private final UsuarioVinculoService usuarioVinculoService;
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -69,6 +70,16 @@ public class AuthService {
         }
     }
 
+    public void validarSenha(UUID usuarioId, String senha) {
+        Usuario usuario = usuarioRepository.findByIdAndDeletedAtIsNull(usuarioId)
+                .orElseThrow(CredenciaisInvalidasException::new);
+
+        if (!Boolean.TRUE.equals(usuario.getAtivo())
+                || !passwordEncoder.matches(senha, usuario.getSenhaHash())) {
+            throw new CredenciaisInvalidasException();
+        }
+    }
+
     @Transactional
     public UsuarioResponse registrar(CriarUsuarioRequest request) {
         if (usuarioRepository.existsByEmailIgnoreCase(request.email())) {
@@ -85,7 +96,12 @@ public class AuthService {
         usuario = usuarioRepository.save(usuario);
 
         List<String> perfisAtribuidos = atribuirPerfis(usuario, request.perfis());
+        usuarioVinculoService.atribuirCargo(usuario, request.cargoId());
+        usuarioVinculoService.atribuirEspecialidades(usuario, request.especialidadeIds());
+        usuario = usuarioRepository.save(usuario);
+
         auditService.registrar(usuario.getId(), "REGISTER", "Usuario", usuario.getId());
+        UsuarioMapperHelper.inicializarCargoEEspecialidades(usuario);
         return UsuarioResponse.from(usuario, perfisAtribuidos);
     }
 

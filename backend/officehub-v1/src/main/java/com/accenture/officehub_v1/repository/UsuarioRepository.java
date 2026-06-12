@@ -15,6 +15,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
+
     List<Usuario> findByDeletedAtIsNullAndAtivoTrueOrderByNomeAsc();
 
     long countByDeletedAtIsNullAndAtivoTrue();

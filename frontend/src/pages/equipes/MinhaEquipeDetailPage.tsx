@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiException } from '../../api/client';
 import { equipesApi } from '../../api/equipes';
+import { UserProfileCard } from '../../components/UserProfileCard';
 import { Alert, PageHeader } from '../../components/ui';
-import type { EquipeResponse } from '../../types';
+import type { EquipeResponse, UsuarioResumo } from '../../types';
 
 export function MinhaEquipeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [equipe, setEquipe] = useState<EquipeResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [usuarioSelecionado, setUsuarioSelecionado] = useState<UsuarioResumo | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -40,10 +42,17 @@ export function MinhaEquipeDetailPage() {
       <div className="detail-grid">
         <div className="card">
           <h3>Gestor(es)</h3>
-          <ul className="simple-list">
+          <ul className="member-list">
             {equipe.gestores.map((g) => (
               <li key={g.id}>
-                <strong>{g.nome}</strong> — {g.email}
+                <button
+                  type="button"
+                  className="member-link"
+                  onClick={() => setUsuarioSelecionado(g)}
+                >
+                  <strong>{g.nome}</strong>
+                  <small>{g.cargoNome || 'Cargo não informado'}</small>
+                </button>
               </li>
             ))}
           </ul>
@@ -54,16 +63,31 @@ export function MinhaEquipeDetailPage() {
           {equipe.membros.length === 0 ? (
             <p className="muted">Nenhum membro cadastrado.</p>
           ) : (
-            <ul className="simple-list">
+            <ul className="member-list">
               {equipe.membros.map((m) => (
                 <li key={m.id}>
-                  <strong>{m.nome}</strong> — {m.email}
+                  <button
+                    type="button"
+                    className="member-link"
+                    onClick={() => setUsuarioSelecionado(m)}
+                  >
+                    <strong>{m.nome}</strong>
+                    <small>{m.cargoNome || 'Cargo não informado'}</small>
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      {usuarioSelecionado && (
+        <UserProfileCard
+          usuario={usuarioSelecionado}
+          open
+          onClose={() => setUsuarioSelecionado(null)}
+        />
+      )}
     </div>
   );
 }

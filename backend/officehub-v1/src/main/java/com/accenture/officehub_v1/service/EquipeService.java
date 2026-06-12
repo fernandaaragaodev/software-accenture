@@ -2,6 +2,7 @@ package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.dto.request.AdicionarMembroEquipeRequest;
 import com.accenture.officehub_v1.dto.request.CriarEquipeRequest;
+import com.accenture.officehub_v1.dto.request.ValidacaoSenhaRequest;
 import com.accenture.officehub_v1.dto.response.EquipeResumoResponse;
 import com.accenture.officehub_v1.dto.response.EquipeResponse;
 import com.accenture.officehub_v1.entity.Equipe;
@@ -39,6 +40,7 @@ public class EquipeService {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioPerfilRepository usuarioPerfilRepository;
     private final AuditService auditService;
+    private final AuthService authService;
 
     @Transactional
     public EquipeResponse criar(CriarEquipeRequest request, UUID usuarioId, Collection<String> perfis) {
@@ -86,8 +88,11 @@ public class EquipeService {
     public EquipeResponse removerMembro(
             UUID equipeId,
             UUID membroId,
+            ValidacaoSenhaRequest senhaRequest,
             UUID usuarioId,
             Collection<String> perfis) {
+
+        authService.validarSenha(usuarioId, senhaRequest.senha());
 
         buscarEquipeAtiva(equipeId);
         validarPermissaoNaEquipe(equipeId, usuarioId, perfis);
@@ -104,13 +109,20 @@ public class EquipeService {
     }
 
     @Transactional
-    public void desmembrar(UUID equipeId, UUID usuarioId, Collection<String> perfis) {
+    public void desfazer(
+            UUID equipeId,
+            ValidacaoSenhaRequest senhaRequest,
+            UUID usuarioId,
+            Collection<String> perfis) {
+
+        authService.validarSenha(usuarioId, senhaRequest.senha());
+
         Equipe equipe = buscarEquipeAtiva(equipeId);
         validarPermissaoNaEquipe(equipeId, usuarioId, perfis);
 
         equipe.setDeletedAt(OffsetDateTime.now());
         equipeRepository.save(equipe);
-        auditService.registrar(usuarioId, "DESMEMBRAR", "Equipe", equipe.getId());
+        auditService.registrar(usuarioId, "DESFAZER", "Equipe", equipe.getId());
     }
 
     public List<EquipeResumoResponse> listar(UUID usuarioId, Collection<String> perfis) {
@@ -157,8 +169,8 @@ public class EquipeService {
     }
 
     private Equipe inicializarRelacionamentos(Equipe equipe) {
-        equipe.getGestores().forEach(g -> g.getUsuario().getNome());
-        equipe.getMembros().forEach(m -> m.getUsuario().getNome());
+        equipe.getGestores().forEach(g -> UsuarioMapperHelper.inicializarCargoEEspecialidades(g.getUsuario()));
+        equipe.getMembros().forEach(m -> UsuarioMapperHelper.inicializarCargoEEspecialidades(m.getUsuario()));
         return equipe;
     }
 

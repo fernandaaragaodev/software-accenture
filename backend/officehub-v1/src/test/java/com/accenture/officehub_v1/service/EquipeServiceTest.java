@@ -2,6 +2,7 @@ package com.accenture.officehub_v1.service;
 
 import com.accenture.officehub_v1.dto.request.AdicionarMembroEquipeRequest;
 import com.accenture.officehub_v1.dto.request.CriarEquipeRequest;
+import com.accenture.officehub_v1.dto.request.ValidacaoSenhaRequest;
 import com.accenture.officehub_v1.entity.Equipe;
 import com.accenture.officehub_v1.entity.Perfil;
 import com.accenture.officehub_v1.entity.Usuario;
@@ -56,6 +57,9 @@ class EquipeServiceTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private AuthService authService;
 
     @InjectMocks
     private EquipeService equipeService;
@@ -127,14 +131,18 @@ class EquipeServiceTest {
     }
 
     @Test
-    void desmembrarEquipeMarcaDeletedAt() {
+    void desfazerEquipeMarcaDeletedAt() {
         Equipe equipe = Equipe.builder().id(EQUIPE_ID).nome("Comercial").build();
 
         when(equipeRepository.findByIdAndDeletedAtIsNull(EQUIPE_ID)).thenReturn(Optional.of(equipe));
         when(equipeGestorRepository.existsByEquipeIdAndUsuarioId(EQUIPE_ID, GESTOR_ID)).thenReturn(true);
         when(equipeRepository.save(any(Equipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        equipeService.desmembrar(EQUIPE_ID, GESTOR_ID, List.of(Roles.GESTOR_RESERVAS));
+        equipeService.desfazer(
+                EQUIPE_ID,
+                new ValidacaoSenhaRequest("senha123"),
+                GESTOR_ID,
+                List.of(Roles.GESTOR_RESERVAS));
 
         ArgumentCaptor<Equipe> captor = ArgumentCaptor.forClass(Equipe.class);
         verify(equipeRepository).save(captor.capture());

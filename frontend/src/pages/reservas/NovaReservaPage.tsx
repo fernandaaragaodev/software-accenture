@@ -121,7 +121,13 @@ export function NovaReservaPage() {
         setSalas(salasAtivas);
         setTiposEquipamento(tiposData);
 
-        const atual: UsuarioResumo = { id: me.id, nome: me.nome, email: me.email };
+        const atual: UsuarioResumo = {
+          id: me.id,
+          nome: me.nome,
+          email: me.email,
+          cargoNome: me.cargo?.nome ?? null,
+          especialidades: me.especialidades ?? [],
+        };
         setUsuarioAtual(atual);
 
         const salaInicial = searchParams.get('salaId') ?? salasAtivas[0]?.id ?? '';
@@ -351,7 +357,7 @@ export function NovaReservaPage() {
         title="Nova Reserva"
         subtitle={
           etapa === 'sugestao'
-            ? 'Escolha uma das sugestões do cardápio e confirme a reserva'
+            ? 'Escolha uma das sugestões do menu e confirme a reserva'
             : 'A IA sugere posições com base nas preferências — você confirma ao final'
         }
       />
@@ -362,7 +368,7 @@ export function NovaReservaPage() {
         <div className="card mt-lg">
           <div className="flex-between">
             <div>
-              <h3>Cardápio de sugestões</h3>
+              <h3>Menu de sugestões</h3>
               <p className="muted">
                 {cardapioSugestoes.length === 1
                   ? '1 opção disponível. Peça mais sugestões ou escolha esta para reservar.'
@@ -571,7 +577,7 @@ export function NovaReservaPage() {
             <strong>Sugestão de posições por IA</strong>
             <p>
               A IA analisa preferências de equipamento e proximidade para sugerir posições.
-              Você pode pedir várias sugestões e escolher a melhor no cardápio antes de confirmar.
+              Você pode pedir várias sugestões e escolher a melhor no menu antes de confirmar.
             </p>
           </div>
 

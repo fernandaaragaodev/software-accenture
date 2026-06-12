@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 interface AlertProps {
   type?: 'error' | 'success' | 'info';
@@ -212,3 +212,89 @@ export const ROLE_LABELS: Record<string, string> = {
   USUARIO_FINAL: 'Usuário Final',
   INTEGRADOR: 'Integrador',
 };
+
+interface PasswordConfirmDialogProps {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'primary';
+  loading?: boolean;
+  error?: string;
+  onConfirm: (senha: string) => void;
+  onCancel: () => void;
+}
+
+export function PasswordConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirmar',
+  cancelLabel = 'Cancelar',
+  variant = 'primary',
+  loading = false,
+  error = '',
+  onConfirm,
+  onCancel,
+}: PasswordConfirmDialogProps) {
+  const [senha, setSenha] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setSenha('');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!senha.trim() || loading) return;
+    onConfirm(senha);
+  }
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
+      <div className="modal">
+        <h3 id="password-confirm-title">{title}</h3>
+        <p>{message}</p>
+        <form onSubmit={handleSubmit} className="form">
+          <Alert message={error} />
+          <label>
+            Sua senha *
+            <input
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              required
+              autoFocus
+              disabled={loading}
+            />
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={loading}>
+              {cancelLabel}
+            </button>
+            <button
+              type="submit"
+              className={`btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+              disabled={loading || !senha.trim()}
+            >
+              {loading ? 'Validando...' : confirmLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

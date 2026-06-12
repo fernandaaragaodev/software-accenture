@@ -495,6 +495,44 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .member-list small { display: block; color: var(--text-muted); }
 
+.member-link {
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.member-link:hover strong {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.profile-details {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0 0;
+}
+
+.profile-details dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.profile-details dd {
+  margin: 0;
+}
+
+.user-profile-card {
+  max-width: 420px;
+}
+
 .person-card {
   background: var(--bg);
   border: 1px solid var(--border);
