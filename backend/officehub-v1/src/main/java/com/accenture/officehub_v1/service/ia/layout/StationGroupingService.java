@@ -8,8 +8,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -18,43 +19,33 @@ public class StationGroupingService {
 
     private static final int SCALE = 4;
     private static final Set<String> CLASSES_CADEIRA = Set.of("cadeira", "chair");
-    private static final Set<String> CLASSES_MONITOR = Set.of("monitor");
 
     private final YoloProperties yoloProperties;
 
     public List<WorkstationGroup> agrupar(List<DetectedObject> objetos) {
         List<DetectedObject> cadeiras = filtrar(objetos, CLASSES_CADEIRA);
-        List<DetectedObject> monitores = filtrar(objetos, CLASSES_MONITOR);
-        List<DetectedObject> demais = objetos.stream()
-                .filter(o -> !CLASSES_CADEIRA.contains(o.className()) && !CLASSES_MONITOR.contains(o.className()))
+        List<DetectedObject> equipamentos = objetos.stream()
+                .filter(o -> !CLASSES_CADEIRA.contains(o.className()))
                 .toList();
 
-        Set<DetectedObject> usados = new HashSet<>();
-        List<WorkstationGroup> grupos = new ArrayList<>();
+        Map<DetectedObject, List<DetectedObject>> membrosPorCadeira = new LinkedHashMap<>();
+        for (DetectedObject cadeira : cadeiras) {
+            List<DetectedObject> membros = new ArrayList<>();
+            membros.add(cadeira);
+            membrosPorCadeira.put(cadeira, membros);
+        }
 
-        for (DetectedObject monitor : monitores) {
-            DetectedObject cadeira = encontrarMaisProxima(cadeiras, monitor, usados);
+        for (DetectedObject equipamento : equipamentos) {
+            DetectedObject cadeira = encontrarCadeiraMaisProxima(cadeiras, equipamento);
             if (cadeira == null) {
                 continue;
             }
+            membrosPorCadeira.get(cadeira).add(equipamento);
+        }
 
-            List<DetectedObject> membros = new ArrayList<>();
-            membros.add(cadeira);
-            membros.add(monitor);
-            usados.add(cadeira);
-            usados.add(monitor);
-
-            for (DetectedObject extra : demais) {
-                if (usados.contains(extra)) {
-                    continue;
-                }
-                if (distancia(monitor, extra).compareTo(yoloProperties.distanciaAgrupamentoMetros()) <= 0) {
-                    membros.add(extra);
-                    usados.add(extra);
-                }
-            }
-
-            grupos.add(criarGrupo(membros));
+        List<WorkstationGroup> grupos = new ArrayList<>();
+        for (DetectedObject cadeira : cadeiras) {
+            grupos.add(criarGrupoCentradoNaCadeira(membrosPorCadeira.get(cadeira), cadeira));
         }
 
         return grupos;
@@ -66,37 +57,22 @@ public class StationGroupingService {
                 .toList();
     }
 
-    private DetectedObject encontrarMaisProxima(
-            List<DetectedObject> candidatos,
-            DetectedObject referencia,
-            Set<DetectedObject> usados) {
+    private DetectedObject encontrarCadeiraMaisProxima(
+            List<DetectedObject> cadeiras,
+            DetectedObject equipamento) {
 
-        return candidatos.stream()
-                .filter(c -> !usados.contains(c))
-                .filter(c -> distancia(c, referencia).compareTo(yoloProperties.distanciaAgrupamentoMetros()) <= 0)
-                .min(Comparator.comparing(c -> distancia(c, referencia)))
+        return cadeiras.stream()
+                .filter(c -> distancia(c, equipamento).compareTo(yoloProperties.distanciaAgrupamentoMetros()) <= 0)
+                .min(Comparator.comparing(c -> distancia(c, equipamento)))
                 .orElse(null);
     }
 
-    private WorkstationGroup criarGrupo(List<DetectedObject> membros) {
-        BigDecimal somaRoomX = BigDecimal.ZERO;
-        BigDecimal somaRoomY = BigDecimal.ZERO;
-        BigDecimal somaPixelX = BigDecimal.ZERO;
-        BigDecimal somaPixelY = BigDecimal.ZERO;
-
-        for (DetectedObject membro : membros) {
-            somaRoomX = somaRoomX.add(membro.roomX());
-            somaRoomY = somaRoomY.add(membro.roomY());
-            somaPixelX = somaPixelX.add(membro.pixelX());
-            somaPixelY = somaPixelY.add(membro.pixelY());
-        }
-
-        BigDecimal divisor = BigDecimal.valueOf(membros.size());
+    private WorkstationGroup criarGrupoCentradoNaCadeira(List<DetectedObject> membros, DetectedObject cadeira) {
         return new WorkstationGroup(
-                somaRoomX.divide(divisor, SCALE, RoundingMode.HALF_UP),
-                somaRoomY.divide(divisor, SCALE, RoundingMode.HALF_UP),
-                somaPixelX.divide(divisor, SCALE, RoundingMode.HALF_UP),
-                somaPixelY.divide(divisor, SCALE, RoundingMode.HALF_UP),
+                cadeira.roomX(),
+                cadeira.roomY(),
+                cadeira.pixelX(),
+                cadeira.pixelY(),
                 List.copyOf(membros));
     }
 

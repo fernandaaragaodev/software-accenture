@@ -27,7 +27,7 @@ public class SpatialValidationService {
 
         if (estacoes.isEmpty()) {
             throw new RegraNegocioException(
-                    "Nenhuma estação de trabalho foi identificada na planta baixa (cadeira + monitor próximos).");
+                    "Nenhuma cadeira foi identificada na planta baixa.");
         }
 
         if (estacoes.size() > capacidadeMaxima) {
