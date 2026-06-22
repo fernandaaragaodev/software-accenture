@@ -11,6 +11,8 @@ public interface TipoEquipamentoRepository extends JpaRepository<TipoEquipamento
 
     Optional<TipoEquipamento> findByIdAndAtivoTrue(UUID id);
 
+    Optional<TipoEquipamento> findByNomeIgnoreCase(String nome);
+
     List<TipoEquipamento> findAllByOrderByNomeAsc();
 
     boolean existsByNomeIgnoreCase(String nome);

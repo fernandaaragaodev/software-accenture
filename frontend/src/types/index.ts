@@ -75,6 +75,8 @@ export interface SalaResponse {
   andar?: number;
   bloco?: string;
   capacidadeMaxima: number;
+  largura?: number;
+  altura?: number;
   raioProximidade?: number;
   status: StatusSala;
   imagemPath?: string;
@@ -303,6 +305,8 @@ export interface PosicaoResponse {
   tipo?: string;
   coordX?: number;
   coordY?: number;
+  pixelX?: number;
+  pixelY?: number;
   tipoCadeira?: string;
   tipoMesa?: string;
   status: 'ATIVA' | 'INATIVA';

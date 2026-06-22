@@ -24,6 +24,7 @@ public class PosicaoEquipamentoService {
     private final PosicaoEquipamentoRepository posicaoEquipamentoRepository;
     private final TipoEquipamentoRepository tipoEquipamentoRepository;
     private final PosicaoService posicaoService;
+    private final TipoEquipamentoService tipoEquipamentoService;
 
     @Transactional
     public PosicaoEquipamentoResponse vincular(UUID posicaoId, VincularEquipamentoPosicaoRequest request) {
@@ -44,6 +45,28 @@ public class PosicaoEquipamentoService {
                 .build();
 
         return PosicaoEquipamentoResponse.from(posicaoEquipamentoRepository.save(vinculo));
+    }
+
+    @Transactional
+    public PosicaoEquipamentoResponse vincularPorTipoNome(UUID posicaoId, String tipoEquipamentoNome, String observacao) {
+        Posicao posicao = posicaoService.buscarEntidadeAtiva(posicaoId);
+        TipoEquipamento tipo = tipoEquipamentoService.buscarOuCriarPorNome(
+                tipoEquipamentoNome,
+                observacao != null ? observacao : "Equipamento detectado automaticamente via IA");
+
+        return posicaoEquipamentoRepository.findByPosicaoIdOrderByCreatedAtAsc(posicaoId).stream()
+                .filter(v -> v.getTipoEquipamento().getId().equals(tipo.getId()))
+                .findFirst()
+                .map(PosicaoEquipamentoResponse::from)
+                .orElseGet(() -> {
+                    PosicaoEquipamento vinculo = PosicaoEquipamento.builder()
+                            .posicao(posicao)
+                            .tipoEquipamento(tipo)
+                            .quantidade(1)
+                            .observacao(observacao)
+                            .build();
+                    return PosicaoEquipamentoResponse.from(posicaoEquipamentoRepository.save(vinculo));
+                });
     }
 
     public List<PosicaoEquipamentoResponse> listarPorPosicao(UUID posicaoId) {

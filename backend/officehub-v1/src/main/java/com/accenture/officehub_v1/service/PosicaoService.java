@@ -37,6 +37,25 @@ public class PosicaoService {
                 .orElseThrow(() -> new RegraNegocioException(
                         "A sala não possui layout ativo. Cadastre e aprove um layout antes de criar posições."));
 
+        return salvarPosicao(request, sala, layout);
+    }
+
+    @Transactional
+    public PosicaoResponse criarNoLayout(CriarPosicaoRequest request, UUID layoutId) {
+        Sala sala = salaService.buscarEntidadeAtiva(request.salaId());
+        validarIdentificadorDuplicado(sala.getId(), request.identificador(), null);
+
+        Layout layout = layoutRepository.findById(layoutId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Layout não encontrado."));
+
+        if (!layout.getSala().getId().equals(sala.getId())) {
+            throw new RegraNegocioException("O layout informado não pertence à sala.");
+        }
+
+        return salvarPosicao(request, sala, layout);
+    }
+
+    private PosicaoResponse salvarPosicao(CriarPosicaoRequest request, Sala sala, Layout layout) {
         Posicao posicao = Posicao.builder()
                 .sala(sala)
                 .layout(layout)
@@ -44,6 +63,8 @@ public class PosicaoService {
                 .tipo(request.tipo())
                 .coordX(request.coordX())
                 .coordY(request.coordY())
+                .pixelX(request.pixelX())
+                .pixelY(request.pixelY())
                 .tipoCadeira(request.tipoCadeira())
                 .tipoMesa(request.tipoMesa())
                 .status(PosicaoStatus.ATIVA)

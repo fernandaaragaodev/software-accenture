@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +30,35 @@ public class SalaService {
     private final SalaRepository salaRepository;
     private final UsuarioRepository usuarioRepository;
     private final AuditService auditService;
+
+    @Transactional
+    public SalaResponse criarParaIa(
+            String nome,
+            BigDecimal largura,
+            BigDecimal altura,
+            int capacidadeMaxima,
+            UUID createdById) {
+
+        validarNomeDuplicado(nome, null);
+
+        Usuario createdBy = usuarioRepository.findByIdAndDeletedAtIsNull(createdById)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Usuário responsável pelo cadastro não encontrado."));
+
+        Sala sala = Sala.builder()
+                .nome(nome)
+                .descricao("Sala gerada automaticamente a partir de planta baixa via IA")
+                .capacidadeMaxima(capacidadeMaxima)
+                .largura(largura)
+                .altura(altura)
+                .status(StatusSala.ATIVA)
+                .createdBy(createdBy)
+                .build();
+
+        Sala salaSalva = salaRepository.save(sala);
+        auditService.registrar(createdById, "CRIAR", "Sala", salaSalva.getId());
+        return SalaResponse.from(salaSalva);
+    }
 
     @Transactional
     public SalaResponse criar(CriarSalaRequest request, UUID createdById) {

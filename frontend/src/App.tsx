@@ -9,6 +9,7 @@ import { UsuariosPage } from './pages/UsuariosPage';
 import { EquipamentosPage } from './pages/admin/EquipamentosPage';
 import { RegrasDisponibilidadePage } from './pages/admin/RegrasDisponibilidadePage';
 import { IaExecucoesPage } from './pages/admin/IaExecucoesPage';
+import { GerarLayoutIaPage } from './pages/admin/GerarLayoutIaPage';
 import { LayoutsPage, PosicoesPage } from './pages/admin/LayoutsPosicoesPages';
 import { EquipeDetailPage } from './pages/equipes/EquipeDetailPage';
 import { EquipeFormPage, EquipesListPage } from './pages/equipes/EquipesPages';
@@ -45,6 +46,7 @@ export default function App() {
                 <Route path="regras-disponibilidade" element={<RegrasDisponibilidadePage />} />
                 <Route path="usuarios" element={<UsuariosPage />} />
                 <Route path="ia-execucoes" element={<IaExecucoesPage />} />
+                <Route path="gerar-layout-ia" element={<GerarLayoutIaPage />} />
                 <Route path="admin/reservas" element={<AdminReservasPage />} />
                 <Route path="admin/reservas/:id" element={<ReservaDetailPage />} />
               </Route>

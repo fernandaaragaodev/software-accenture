@@ -14,6 +14,8 @@ public record CriarPosicaoRequest(
         String tipo,
         BigDecimal coordX,
         BigDecimal coordY,
+        BigDecimal pixelX,
+        BigDecimal pixelY,
         String tipoCadeira,
         String tipoMesa
 ) {

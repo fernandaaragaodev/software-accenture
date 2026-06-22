@@ -58,6 +58,12 @@ public class Sala {
     @Column(name = "capacidade_maxima")
     private Integer capacidadeMaxima;
 
+    @Column(name = "largura")
+    private BigDecimal largura;
+
+    @Column(name = "altura")
+    private BigDecimal altura;
+
     @Column(name = "raio_proximidade")
     private BigDecimal raioProximidade;
 

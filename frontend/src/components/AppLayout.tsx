@@ -67,6 +67,7 @@ export function AppLayout() {
         { to: '/regras-disponibilidade', label: 'Regras', icon: '📋' },
         { to: '/usuarios', label: 'Usuários', icon: '👤' },
         { to: '/ia-execucoes', label: 'IA Execuções', icon: '✦' },
+        { to: '/gerar-layout-ia', label: 'Gerar Sala IA', icon: '🖼' },
       ],
     });
   }

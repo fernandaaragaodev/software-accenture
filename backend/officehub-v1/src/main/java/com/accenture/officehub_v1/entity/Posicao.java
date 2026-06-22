@@ -61,6 +61,12 @@ public class Posicao {
     @Column(name = "coord_y")
     private BigDecimal coordY;
 
+    @Column(name = "pixel_x")
+    private BigDecimal pixelX;
+
+    @Column(name = "pixel_y")
+    private BigDecimal pixelY;
+
     @Column(name = "tipo_cadeira", length = 100)
     private String tipoCadeira;
 

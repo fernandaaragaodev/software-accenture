@@ -77,6 +77,19 @@ public class TipoEquipamentoService {
                         "Tipo de equipamento não encontrado."));
     }
 
+    @Transactional
+    public TipoEquipamento buscarOuCriarPorNome(String nome, String descricao) {
+        return tipoEquipamentoRepository.findByNomeIgnoreCase(nome)
+                .orElseGet(() -> {
+                    TipoEquipamento novo = TipoEquipamento.builder()
+                            .nome(nome)
+                            .descricao(descricao)
+                            .ativo(true)
+                            .build();
+                    return tipoEquipamentoRepository.save(novo);
+                });
+    }
+
     private void validarNomeDuplicado(String nome, UUID idExcluir) {
         boolean duplicado = idExcluir == null
                 ? tipoEquipamentoRepository.existsByNomeIgnoreCase(nome)
