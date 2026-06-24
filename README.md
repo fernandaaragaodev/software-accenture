@@ -1,4 +1,4 @@
-# Accendesk (OfficeHub)
+# Accendesk 
 
 Plataforma web para **gestão de salas corporativas**, **reservas de posições de trabalho** e **alocação inteligente de equipes**. O frontend **Accendesk** consome a API **OfficeHub** (Spring Boot) e integra um serviço de visão computacional (YOLO) para gerar layouts a partir de plantas baixas.
 
