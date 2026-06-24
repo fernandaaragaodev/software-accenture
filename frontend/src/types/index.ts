@@ -1,6 +1,6 @@
 export type Role = 'ADMIN_SALA' | 'GESTOR_RESERVAS' | 'USUARIO_FINAL' | 'INTEGRADOR';
 
-export type StatusSala = 'ATIVA' | 'INATIVA' | 'MANUTENCAO';
+export type StatusSala = 'ATIVA' | 'INATIVA' | 'MANUTENCAO' | 'PENDENTE_APROVACAO';
 export type StatusReserva = 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA' | 'CANCELADA';
 export type CriterioProximidade = 'OBRIGATORIA' | 'PREFERENCIAL';
 export type PosicaoSituacao = 'LIVRE' | 'OCUPADA' | 'INATIVA';
@@ -379,6 +379,19 @@ export interface VincularEquipamentoPosicaoRequest {
   observacao?: string;
 }
 
+
+export interface PosicaoComEquipamentosResponse {
+  posicao: PosicaoResponse;
+  equipamentos: PosicaoEquipamentoResponse[];
+}
+
+export interface GerarLayoutPorIaResponse {
+  sala: SalaResponse;
+  layout: LayoutResponse;
+  posicoes: PosicaoComEquipamentosResponse[];
+  totalDetecoes: number;
+  totalEstacoes: number;
+}
 
 export interface AgenteExecucaoResponse {
   id: string;

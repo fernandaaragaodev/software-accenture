@@ -51,13 +51,36 @@ public class SalaService {
                 .capacidadeMaxima(capacidadeMaxima)
                 .largura(largura)
                 .altura(altura)
-                .status(StatusSala.ATIVA)
+                .status(StatusSala.PENDENTE_APROVACAO)
                 .createdBy(createdBy)
                 .build();
 
         Sala salaSalva = salaRepository.save(sala);
         auditService.registrar(createdById, "CRIAR", "Sala", salaSalva.getId());
         return SalaResponse.from(salaSalva);
+    }
+
+    @Transactional
+    public SalaResponse confirmarGeracaoIa(UUID id) {
+        Sala sala = buscarEntidadeAtiva(id);
+        if (sala.getStatus() != StatusSala.PENDENTE_APROVACAO) {
+            throw new RegraNegocioException(
+                    "Esta sala não está aguardando confirmação da geração por IA.");
+        }
+        sala.setStatus(StatusSala.ATIVA);
+        Sala salaSalva = salaRepository.save(sala);
+        auditService.registrar(SecurityUtils.getUsuarioIdAtual(), "CONFIRMAR_IA", "Sala", salaSalva.getId());
+        return SalaResponse.from(salaSalva);
+    }
+
+    @Transactional
+    public SalaResponse negarGeracaoIa(UUID id) {
+        Sala sala = buscarEntidadeAtiva(id);
+        if (sala.getStatus() != StatusSala.PENDENTE_APROVACAO) {
+            throw new RegraNegocioException(
+                    "Esta sala não está aguardando confirmação da geração por IA.");
+        }
+        return inativar(id);
     }
 
     @Transactional
@@ -86,7 +109,7 @@ public class SalaService {
     }
 
     public List<SalaResponse> listarNaoDeletadas() {
-        return salaRepository.findByDeletedAtIsNull().stream()
+        return salaRepository.findByDeletedAtIsNullAndStatusNot(StatusSala.PENDENTE_APROVACAO).stream()
                 .map(SalaResponse::from)
                 .toList();
     }

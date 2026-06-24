@@ -1,3 +1,5 @@
+import { api } from './client';
+import type { GerarLayoutPorIaResponse, SalaResponse } from '../types';
 import { getAccessToken } from '../utils/auth';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
@@ -9,7 +11,7 @@ export interface GerarLayoutPorIaParams {
   imagem: File;
 }
 
-export async function gerarLayoutPorIa(params: GerarLayoutPorIaParams) {
+export async function gerarLayoutPorIa(params: GerarLayoutPorIaParams): Promise<GerarLayoutPorIaResponse> {
   const formData = new FormData();
   formData.append('nomeSala', params.nomeSala);
   formData.append('largura', String(params.largura));
@@ -35,4 +37,12 @@ export async function gerarLayoutPorIa(params: GerarLayoutPorIaParams) {
   }
 
   return response.json();
+}
+
+export function confirmarSalaIa(salaId: string): Promise<SalaResponse> {
+  return api.patch<SalaResponse>(`/layouts/ia/${salaId}/confirmar`);
+}
+
+export function negarSalaIa(salaId: string): Promise<SalaResponse> {
+  return api.patch<SalaResponse>(`/layouts/ia/${salaId}/negar`);
 }

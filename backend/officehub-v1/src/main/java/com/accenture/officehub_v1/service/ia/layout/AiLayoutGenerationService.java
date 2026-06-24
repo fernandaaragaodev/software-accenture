@@ -105,6 +105,16 @@ public class AiLayoutGenerationService {
                 estacoes.size());
     }
 
+    @Transactional
+    public SalaResponse confirmar(UUID salaId) {
+        return salaService.confirmarGeracaoIa(salaId);
+    }
+
+    @Transactional
+    public SalaResponse negar(UUID salaId) {
+        return salaService.negarGeracaoIa(salaId);
+    }
+
     private List<PosicaoEquipamentoResponse> vincularEquipamentos(UUID posicaoId, WorkstationGroup estacao) {
         List<PosicaoEquipamentoResponse> equipamentos = new ArrayList<>();
         Set<String> tiposVinculados = new LinkedHashSet<>();

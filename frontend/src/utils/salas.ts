@@ -78,7 +78,7 @@ export function computeReadiness(
   layout: LayoutResponse | null,
   posicoes: PosicaoResponse[],
 ): SalaReadiness {
-  if (sala.status === 'INATIVA' || sala.status === 'MANUTENCAO') {
+  if (sala.status === 'INATIVA' || sala.status === 'MANUTENCAO' || sala.status === 'PENDENTE_APROVACAO') {
     return 'indisponivel';
   }
   const hasDisponibilidade = !!regra && regra.horarios.length > 0;

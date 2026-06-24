@@ -1,17 +1,21 @@
 package com.accenture.officehub_v1.controller;
 
 import com.accenture.officehub_v1.dto.response.GerarLayoutPorIaResponse;
+import com.accenture.officehub_v1.dto.response.SalaResponse;
 import com.accenture.officehub_v1.service.ia.layout.AiLayoutGenerationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,5 +32,15 @@ public class AiLayoutController {
 
         GerarLayoutPorIaResponse response = aiLayoutGenerationService.gerar(nomeSala, largura, altura, imagem);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/api/v1/layouts/ia/{salaId}/confirmar")
+    public ResponseEntity<SalaResponse> confirmar(@PathVariable UUID salaId) {
+        return ResponseEntity.ok(aiLayoutGenerationService.confirmar(salaId));
+    }
+
+    @PatchMapping("/api/v1/layouts/ia/{salaId}/negar")
+    public ResponseEntity<SalaResponse> negar(@PathVariable UUID salaId) {
+        return ResponseEntity.ok(aiLayoutGenerationService.negar(salaId));
     }
 }

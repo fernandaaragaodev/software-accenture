@@ -618,6 +618,22 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.8125rem;
 }
 
+.ia-preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ia-preview-header h3 {
+  margin: 0 0 0.25rem;
+}
+
+.ia-layout-preview h4 {
+  margin: 0 0 0.75rem;
+}
+
 .pagination-bar {
   display: flex;
   flex-wrap: wrap;

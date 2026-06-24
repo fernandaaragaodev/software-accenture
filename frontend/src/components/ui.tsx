@@ -40,6 +40,7 @@ const STATUS_CLASS: Record<string, string> = {
   ATIVA: 'success',
   INATIVA: 'muted',
   MANUTENCAO: 'warning',
+  PENDENTE_APROVACAO: 'warning',
   PENDENTE: 'warning',
   CONFIRMADA: 'success',
   REJEITADA: 'danger',
@@ -48,8 +49,13 @@ const STATUS_CLASS: Record<string, string> = {
   OCUPADA: 'danger',
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  PENDENTE_APROVACAO: 'Aguardando confirmação',
+};
+
 export function StatusBadge({ status }: StatusBadgeProps) {
-  return <span className={`badge badge-${STATUS_CLASS[status] ?? 'muted'}`}>{status}</span>;
+  const label = STATUS_LABEL[status] ?? status;
+  return <span className={`badge badge-${STATUS_CLASS[status] ?? 'muted'}`}>{label}</span>;
 }
 
 interface EmptyStateProps {
