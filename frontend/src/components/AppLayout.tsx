@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { BrandIcon } from './BrandIcon';
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN_SALA: 'Admin Sala',
@@ -137,16 +138,16 @@ export function AppLayout() {
           {sidebarOpen ? '✕' : '☰'}
         </button>
         <div className="brand">
-          <span className="brand-icon">OH</span>
-          <strong>OfficeHub</strong>
+          <BrandIcon />
+          <strong>Accendesk</strong>
         </div>
       </header>
 
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
-          <span className="brand-icon">OH</span>
+          <BrandIcon />
           <div>
-            <strong>OfficeHub</strong>
+            <strong>Accendesk</strong>
             <small>Gestão de salas</small>
           </div>
         </div>

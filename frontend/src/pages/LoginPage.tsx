@@ -4,6 +4,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { ApiException } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Alert } from '../components/ui';
+import { BrandIcon } from '../components/BrandIcon';
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -39,8 +40,8 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="brand-large">
-          <span className="brand-icon">OH</span>
-          <h1>OfficeHub</h1>
+          <BrandIcon />
+          <h1>Accendesk</h1>
           <p>Sistema de gestão de salas e reservas</p>
         </div>
 

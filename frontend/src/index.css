@@ -91,14 +91,10 @@ small, .muted { color: var(--text-muted); font-size: 0.875rem; }
 .brand-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, var(--primary), #6366f1);
   border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.875rem;
-  color: white;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brand small { display: block; color: var(--text-muted); }
@@ -219,7 +215,6 @@ small, .muted { color: var(--text-muted); font-size: 0.875rem; }
   width: 56px;
   height: 56px;
   margin: 0 auto 1rem;
-  font-size: 1.125rem;
 }
 .brand-large h1 { font-size: 1.75rem; }
 .brand-large p { color: var(--text-muted); margin: 0; }

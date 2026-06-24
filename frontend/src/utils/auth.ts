@@ -1,7 +1,7 @@
 import type { JwtPayload, Role } from '../types';
 
-const ACCESS_TOKEN_KEY = 'officehub_access_token';
-const REFRESH_TOKEN_KEY = 'officehub_refresh_token';
+const ACCESS_TOKEN_KEY = 'accendesk_access_token';
+const REFRESH_TOKEN_KEY = 'accendesk_refresh_token';
 
 const LEGACY_ACCESS_TOKEN_KEYS = ['accessToken', 'sgsp_accessToken', 'sgsp_token', 'token'];
 const LEGACY_REFRESH_TOKEN_KEYS = ['refreshToken', 'sgsp_refreshToken'];
@@ -85,7 +85,7 @@ export function hasAnyRole(required: Role[], roles?: Role[]): boolean {
   return required.some((role) => userRoles.includes(role));
 }
 
-export const RESERVATION_IDS_KEY = 'officehub_reserva_ids';
+export const RESERVATION_IDS_KEY = 'accendesk_reserva_ids';
 
 export function getStoredReservationIds(): string[] {
   try {

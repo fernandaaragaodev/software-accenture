@@ -6,7 +6,7 @@ import type {
   RefreshTokenRequest,
   UsuarioResponse,
 } from '../types';
-import { clearTokens, setTokens } from '../utils/auth';
+import { clearTokens, getRefreshToken, setTokens } from '../utils/auth';
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   clearTokens();
@@ -16,7 +16,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = localStorage.getItem('officehub_refresh_token');
+  const refreshToken = getRefreshToken();
   if (refreshToken) {
     try {
       await api.post('/auth/logout', { refreshToken } satisfies RefreshTokenRequest);

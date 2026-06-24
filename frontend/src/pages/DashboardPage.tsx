@@ -32,7 +32,7 @@ export function DashboardPage() {
     <div>
       <div className="welcome-banner">
         <h2>Olá, {primeiroNome}!</h2>
-        <p>Bem-vindo ao OfficeHub — gerencie salas, equipes e reservas em um só lugar.</p>
+        <p>Bem-vindo ao Accendesk — gerencie salas, equipes e reservas em um só lugar.</p>
       </div>
 
       <Alert message={error} />
