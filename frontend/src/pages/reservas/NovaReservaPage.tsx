@@ -38,6 +38,28 @@ function criarPessoaVazia(key: number, usuarioId?: string): PessoaForm {
   };
 }
 
+function obterMembrosEquipeOrdenados(equipe: EquipeResponse): UsuarioResumo[] {
+  const map = new Map<string, UsuarioResumo>();
+  equipe.gestores.forEach((g) => map.set(g.id, g));
+  equipe.membros.forEach((m) => map.set(m.id, m));
+  return Array.from(map.values()).sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
+  );
+}
+
+function criarPessoasDaEquipe(membros: UsuarioResumo[], prev: PessoaForm[]): PessoaForm[] {
+  const prevPorUsuario = new Map(
+    prev.filter((p) => p.usuarioId).map((p) => [p.usuarioId!, p]),
+  );
+  return membros.map((membro, index) => {
+    const existente = prevPorUsuario.get(membro.id);
+    if (existente) {
+      return { ...existente, key: index + 1, usuarioId: membro.id };
+    }
+    return criarPessoaVazia(index + 1, membro.id);
+  });
+}
+
 function toTimeInput(value: string) {
   return value.slice(0, 5);
 }
@@ -97,15 +119,15 @@ export function NovaReservaPage() {
     [salas, salaId],
   );
 
-  const opcoesPessoas = useMemo(() => {
-    if (isGestor && equipeSelecionada) {
-      const map = new Map<string, UsuarioResumo>();
-      equipeSelecionada.gestores.forEach((g) => map.set(g.id, g));
-      equipeSelecionada.membros.forEach((m) => map.set(m.id, m));
-      return Array.from(map.values());
-    }
-    return usuarioAtual ? [usuarioAtual] : [];
-  }, [isGestor, equipeSelecionada, usuarioAtual]);
+  const membrosEquipe = useMemo(
+    () => (equipeSelecionada ? obterMembrosEquipeOrdenados(equipeSelecionada) : []),
+    [equipeSelecionada],
+  );
+
+  const membroPorId = useMemo(
+    () => new Map(membrosEquipe.map((m) => [m.id, m])),
+    [membrosEquipe],
+  );
 
   useEffect(() => {
     async function carregarDados() {
@@ -141,7 +163,9 @@ export function NovaReservaPage() {
           }
         }
 
-        setPessoas([criarPessoaVazia(1, isUsuarioFinal ? me.id : '')]);
+        if (!isGestor) {
+          setPessoas([criarPessoaVazia(1, isUsuarioFinal ? me.id : '')]);
+        }
       } catch (err) {
         setError(err instanceof ApiException ? err.message : 'Erro ao carregar dados da reserva');
       } finally {
@@ -195,6 +219,22 @@ export function NovaReservaPage() {
   }, [salaId, dataReserva]);
 
   useEffect(() => {
+    if (!isGestor) return;
+
+    if (!equipeSelecionada) {
+      setPessoas([]);
+      setQuantidadePessoas(0);
+      return;
+    }
+
+    const membros = obterMembrosEquipeOrdenados(equipeSelecionada);
+    setQuantidadePessoas(membros.length);
+    setPessoas((prev) => criarPessoasDaEquipe(membros, prev));
+  }, [isGestor, equipeSelecionada]);
+
+  useEffect(() => {
+    if (isGestor) return;
+
     if (isUsuarioFinal && usuarioAtual) {
       setQuantidadePessoas(1);
       setPessoas([criarPessoaVazia(1, usuarioAtual.id)]);
@@ -208,7 +248,7 @@ export function NovaReservaPage() {
       }
       return next;
     });
-  }, [quantidadePessoas, isUsuarioFinal, usuarioAtual]);
+  }, [quantidadePessoas, isUsuarioFinal, isGestor, usuarioAtual]);
 
   function updatePessoa(index: number, field: keyof PessoaReservaRequest, value: string) {
     setPessoas((prev) =>
@@ -218,7 +258,8 @@ export function NovaReservaPage() {
 
   function nomePessoa(usuarioId?: string) {
     if (!usuarioId) return '';
-    return opcoesPessoas.find((p) => p.id === usuarioId)?.nome ?? '';
+    if (isGestor) return membroPorId.get(usuarioId)?.nome ?? '';
+    return usuarioAtual?.id === usuarioId ? usuarioAtual.nome : '';
   }
 
   function montarRequest(): SolicitarReservaRequest | null {
@@ -262,16 +303,9 @@ export function NovaReservaPage() {
       }
     }
 
-    if (isGestor) {
-      const ids = pessoas.map((p) => p.usuarioId).filter(Boolean);
-      if (ids.length !== pessoas.length) {
-        setError('Selecione o participante para cada pessoa.');
-        return false;
-      }
-      if (new Set(ids).size !== ids.length) {
-        setError('Cada membro só pode ser selecionado uma vez na mesma reserva.');
-        return false;
-      }
+    if (isGestor && pessoas.length === 0) {
+      setError('A equipe selecionada não possui membros para alocar.');
+      return false;
     }
 
     return true;
@@ -535,20 +569,35 @@ export function NovaReservaPage() {
               />
             </label>
 
-            <label>
-              Quantidade de pessoas *
-              <input
-                type="number"
-                min={1}
-                value={quantidadePessoas}
-                onChange={(e) => setQuantidadePessoas(Number(e.target.value))}
-                required
-                disabled={isUsuarioFinal}
-              />
-              {isUsuarioFinal && (
-                <small className="muted">Reserva individual — apenas para você.</small>
-              )}
-            </label>
+            {isGestor ? (
+              <label>
+                Participantes
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    equipeSelecionada
+                      ? `${quantidadePessoas} membro${quantidadePessoas !== 1 ? 's' : ''} (equipe completa)`
+                      : 'Selecione a equipe'
+                  }
+                />
+              </label>
+            ) : (
+              <label>
+                Quantidade de pessoas *
+                <input
+                  type="number"
+                  min={1}
+                  value={quantidadePessoas}
+                  onChange={(e) => setQuantidadePessoas(Number(e.target.value))}
+                  required
+                  disabled={isUsuarioFinal}
+                />
+                {isUsuarioFinal && (
+                  <small className="muted">Reserva individual — apenas para você.</small>
+                )}
+              </label>
+            )}
 
             <label>
               Critério de proximidade *
@@ -581,29 +630,38 @@ export function NovaReservaPage() {
             </p>
           </div>
 
-          <h3 className="section-title">Pessoas</h3>
-          {pessoas.map((pessoa, index) => (
-            <div key={pessoa.key} className="person-card">
-              <h4>Pessoa {index + 1}</h4>
-              <div className="form-grid">
-                {isGestor ? (
-                  <label>
-                    Participante *
-                    <select
-                      value={pessoa.usuarioId ?? ''}
-                      onChange={(e) => updatePessoa(index, 'usuarioId', e.target.value)}
-                      required
-                      disabled={!equipeSelecionada}
-                    >
-                      <option value="">Selecione...</option>
-                      {opcoesPessoas.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.nome} ({u.email})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
+          <h3 className="section-title">
+            {isGestor
+              ? `Equipe (${quantidadePessoas} participante${quantidadePessoas !== 1 ? 's' : ''} — ordem alfabética)`
+              : 'Pessoas'}
+          </h3>
+
+          {isGestor && !equipeSelecionada && (
+            <p className="muted">Selecione uma equipe para alocar os membros automaticamente.</p>
+          )}
+
+          {isGestor && equipeSelecionada && pessoas.length === 0 && (
+            <Alert message="A equipe selecionada não possui membros." />
+          )}
+
+          <div className={isGestor ? 'person-cards-grid' : undefined}>
+          {pessoas.map((pessoa, index) => {
+            const membro = pessoa.usuarioId ? membroPorId.get(pessoa.usuarioId) : undefined;
+
+            return (
+            <div key={pessoa.key} className={`person-card${isGestor ? ' person-card-compact' : ''}`}>
+              {isGestor ? (
+                <div className="person-card-header">
+                  <span className="person-card-name">{membro?.nome ?? '—'}</span>
+                  {membro?.cargoNome && (
+                    <span className="person-card-meta">{membro.cargoNome}</span>
+                  )}
+                </div>
+              ) : (
+                <h4>Pessoa {index + 1}</h4>
+              )}
+              <div className={`form-grid${isGestor ? ' person-card-equip' : ''}`}>
+                {!isGestor && (
                   <label>
                     Participante
                     <input value={nomePessoa(pessoa.usuarioId) || usuarioAtual?.nome || ''} readOnly />
@@ -653,14 +711,21 @@ export function NovaReservaPage() {
                 </label>
               </div>
             </div>
-          ))}
+            );
+          })}
+          </div>
 
           <div className="form-actions">
             <Link to="/reservas" className="btn btn-ghost">Voltar</Link>
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={loading || !salaId || (!horarioDia && !!dataReserva)}
+              disabled={
+                loading
+                || !salaId
+                || (!horarioDia && !!dataReserva)
+                || (isGestor && pessoas.length === 0)
+              }
             >
               {loading ? 'Gerando sugestão...' : 'Obter sugestão da IA'}
             </button>
