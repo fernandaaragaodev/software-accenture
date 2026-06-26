@@ -63,7 +63,7 @@ software-accenture/
 
 ### 1. Banco de dados
 
-Crie o banco PostgreSQL e aplique as migrações incrementais em `backend/officehub-v1/src/main/resources/db/migration/` (V002–V006). Ajuste credenciais em `application.properties` se necessário:
+Crie o banco PostgreSQL apartir do arquivo de restore disponibilizado na branch main
 
 ```properties
 spring.datasource.url=jdbc:postgresql://localhost:5432/sgsp
@@ -105,7 +105,7 @@ pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-**Windows:** execute `run.bat` (cria venv, instala dependências e inicia na porta 8001).
+**Windows:** execute `run.bat` (essa execução cria venv, instala dependências e inicia na porta 8001).
 
 Opcionalmente, copie `.env.example` para `.env`:
 
@@ -193,6 +193,10 @@ npm run preview   # preview do build
 | Visão computacional | FastAPI, Ultralytics YOLO, Pillow |
 | IA de alocação | OpenRouter (Gemini 2.5 Flash) + motor espacial |
 
-## Licença
+## Licença e Contexto Acadêmico
 
-Projeto desenvolvido no contexto Accenture. Consulte os mantenedores do repositório para informações de licenciamento e uso.
+Este projeto foi desenvolvido como parte de uma atividade avaliativa da disciplina **Residência de Software II**, pela **Squad 26** da turma **GP0161NOT03A**, composta por alunos da **Universidade Tiradentes (UNIT)**.
+
+O desenvolvimento ocorreu no contexto de uma residência tecnológica em parceria com a **Accenture** e o **Porto Digital**, tendo caráter exclusivamente acadêmico e educacional.
+
+Salvo indicação em contrário, o código-fonte é disponibilizado para fins de estudo, demonstração e avaliação. 
